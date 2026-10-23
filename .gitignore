@@ -1,0 +1,9 @@
+# Datos de jugadores (nombres y WhatsApp): nunca subir
+data/
+*.csv
+
+# Sistema / temporales
+.DS_Store
+Thumbs.db
+__pycache__/
+*.tmp

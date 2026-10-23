@@ -19,16 +19,16 @@
     CEILING_Y: 30,
     GROUND_Y: 462,
 
-    GRAVITY: 2100,
-    THRUST: 4300,
+    GRAVITY: 1860,
+    THRUST: 4800,
     THRUST_RESPONSE: 10,
     AIR_DRAG: 0.6,
     MAX_RISE: 560,
     MAX_FALL: 780,
 
-    BASE_SPEED: 380,
-    SPEED_STEP: 14,
-    MAX_SPEED: 900,
+    BASE_SPEED: 310,
+    SPEED_STEP: 8,
+    MAX_SPEED: 680,
     SPEED_LERP: 1.5,
     PX_PER_METER: 24,
 
@@ -73,36 +73,49 @@
     letters: 'assets/letras.png',
     tunnel: 'assets/tunel.png',
     market: 'assets/mercado.png',
-    crowd1: 'assets/publico1.png',
-    crowd2: 'assets/publico2.png',
+    iglesia: 'assets/iglesia.png',
+    fanBoy: 'assets/crowd/crowd_boy.png',
+    fanGirl: 'assets/crowd/crowd_girl.png',
+    fanMan: 'assets/crowd/crowd_man.png',
+    fanWoman: 'assets/crowd/crowd_woman.png',
+    fanPoncho: 'assets/crowd/crowd_poncho.png',
+    fanFlag: 'assets/crowd/crowd_flag.png',
+    fanAbuelo: 'assets/crowd/crowd_abuelo.png',
+    fanAbuela: 'assets/crowd/crowd_abuela.png',
+    fanKid: 'assets/crowd/crowd_kid.png',
+    fanJoven: 'assets/crowd/crowd_joven.png',
+    fanBarba: 'assets/crowd/crowd_barba.png',
   };
   // Se incrementa al regenerar las imágenes para invalidar la caché del navegador.
-  const ASSET_VERSION = 'hd6';
+  const ASSET_VERSION = 'hd11';
 
   const TAU = Math.PI * 2;
-  const PARALLAX = { far: 0.05, sanctuary: 0.3, town: 0.45, poles: 0.75, front: 1 };
+  // El fondo avanza más lento que el vuelo para que cada lugar se quede un rato en pantalla.
+  const PARALLAX = { far: 0.03, sanctuary: 0.16, town: 0.3, poles: 0.5, front: 1 };
+  // Los pies del piloto van en el asfalto, debajo de la acera (que termina en GROUND_Y + 22).
+  const ROAD_Y = CONFIG.GROUND_Y + 40;
 
-  // Público en la acera: flipbook de tiras horizontales (publico1 / publico2).
-  // Calibración:
-  //   FRAMES   → número de poses de cada PNG (8 divide exacto el ancho 2928).
-  //   FRAME_W  → 0 = ancho automático (naturalWidth / FRAMES). Si una pose se corta,
-  //              pon aquí el ancho en píxeles de un fotograma (p. ej. 366).
-  //   FRAME_MS → ms por pose (160 ≈ 6.25 FPS). Independiente del scroll y del game loop.
-  //   HEIGHT   → alto del grupo en unidades de mundo (el ancho se deriva del recorte).
-  //   SPACING  → distancia entre grupos a lo largo de la calle.
+  // Público de la acera: personas sueltas y grupos con cartel. El texto se dibuja en el juego.
+  const CROWD_KEYS = [
+    'fanBoy', 'fanGirl', 'fanMan', 'fanWoman', 'fanPoncho', 'fanFlag',
+    'fanAbuelo', 'fanAbuela', 'fanKid', 'fanJoven', 'fanBarba',
+  ];
+  const SIGN_PHRASES = [
+    '¡VAMOS ZHINDÓN!',
+    'BIBLIÁN CONTIGO',
+    '¡SÍ SE PUEDE!',
+    'ILUMINA BIBLIÁN',
+    'CON ZHINDÓN',
+    '¡ADELANTE!',
+  ];
   const CROWD = {
-    FRAMES: 8,
-    FRAME_W: 366, // 2928 / 8 — entero para no filtrar el fotograma vecino
-    FRAME_MS: 160, // ~6.25 poses/s; el flipbook NO sigue el game loop de 60 FPS
-    HEIGHT: 138,
-    SPACING: 176,
-    FOOT: 14, // pies sobre la vereda gris (16 px bajo GROUND_Y)
-    EDGE_CROP: 16, // px enteros recortados a cada lado del frame
+    HEIGHT: 80,
+    FOOT: 13,
   };
   // Altura en unidades de mundo de cada capa ilustrada y proporción ancho/alto de cada imagen.
-  const LAYER_H = { far: 600, sanctuary: 400, town: 205, letters: 125, obelisk: 290, tunnel: 235, train: 104, market: 210 };
+  const LAYER_H = { far: 600, sanctuary: 400, iglesia: 268, town: 205, letters: 125, obelisk: 290, tunnel: 235, train: 104, market: 210 };
   const ASPECT = {
-    town: 1058 / 420, sanctuary: 1020 / 720, letters: 1000 / 298,
+    town: 1058 / 420, sanctuary: 1020 / 720, iglesia: 1235 / 654, letters: 1000 / 298,
     obelisk: 600 / 739, tunnel: 960 / 704, train: 1000 / 386, market: 2597 / 737,
   };
   const layerW = (key) => LAYER_H[key] * ASPECT[key];
@@ -111,12 +124,13 @@
   // tramos de casas lo bastante largos para que nunca coincidan dos en pantalla.
   // 'T' = bloque de casas, '@x' = marca de escena (Santuario al fondo o paso del tren).
   const STREET_PLAN = [
-    'T', 'T', 'T', 'T', '@sanctuary', 'T', 'T', 'T', 'T', 'T',
-    'letters', 'T', 'T', 'T', 'T',
-    '@train', 'T', 'T', 'T',
-    'market', 'T', 'T', 'T', 'T',
-    'obelisk', 'T', 'T', 'T', 'T',
-    'tunnel', 'T', 'T', 'T',
+    'T', 'T', 'T', 'T', 'T', 'T', '@sanctuary', 'T', 'T', 'T', 'T', 'T', 'T',
+    'iglesia', 'T', 'T', 'T', 'T', 'T', 'T',
+    'letters', 'T', 'T', 'T', 'T', 'T', 'T',
+    '@train', 'T', 'T', 'T', 'T', 'T',
+    'market', 'T', 'T', 'T', 'T', 'T', 'T',
+    'obelisk', 'T', 'T', 'T', 'T', 'T',
+    'tunnel', 'T', 'T', 'T', 'T', 'T',
   ];
   const LANDMARK_GAP = 50;
   const STREET = (() => {
@@ -275,53 +289,6 @@
   }
   images.player.addEventListener('load', buildShockSprite);
   const ready = (img) => !!img && ((img.complete && img.naturalWidth > 0) || (img.width > 0 && img.height > 0));
-
-  // Alfa binario (0 o 255): sin halo semitransparente ni blend fantasma.
-  function flattenCrowdSheet(img) {
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.drawImage(img, 0, 0);
-    const data = g.getImageData(0, 0, w, h);
-    const p = data.data;
-    for (let i = 3; i < p.length; i += 4) p[i] = p[i] >= 64 ? 255 : 0;
-    const copy = p.slice();
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = (y * w + x) * 4;
-        if (!copy[i + 3]) continue;
-        const luma = 0.299 * copy[i] + 0.587 * copy[i + 1] + 0.114 * copy[i + 2];
-        const mx = Math.max(copy[i], copy[i + 1], copy[i + 2]);
-        const mn = Math.min(copy[i], copy[i + 1], copy[i + 2]);
-        if (luma < 228 || mx - mn > 32) continue;
-        let edge = x === 0 || y === 0 || x === w - 1 || y === h - 1;
-        if (!edge) {
-          for (let oy = -1; oy <= 1 && !edge; oy++) {
-            for (let ox = -1; ox <= 1; ox++) {
-              if (!copy[((y + oy) * w + (x + ox)) * 4 + 3]) { edge = true; break; }
-            }
-          }
-        }
-        if (edge) p[i + 3] = 0;
-      }
-    }
-    g.putImageData(data, 0, 0);
-    return c;
-  }
-
-  function hardenCrowd(key) {
-    const img = images[key];
-    if (!img || img.tagName === 'CANVAS' || !img.complete || !img.naturalWidth) return;
-    images[key] = flattenCrowdSheet(img);
-  }
-  images.crowd1.addEventListener('load', () => hardenCrowd('crowd1'));
-  images.crowd2.addEventListener('load', () => hardenCrowd('crowd2'));
-  hardenCrowd('crowd1');
-  hardenCrowd('crowd2');
 
   let shockSprite = null;
 
@@ -484,7 +451,7 @@
   };
 
   const player = {
-    x: 150, y: CONFIG.GROUND_Y - 40,
+    x: 150, y: ROAD_Y - 40,
     w: 40, h: 80,
     vy: 0,
     thrust: 0,
@@ -510,9 +477,6 @@
   const trail = [];
   const popups = [];
 
-  // Flipbook del público: avanza por reloj real, nunca por tick de físicas ni por rAF.
-  const crowdAnim = { frame: 0, lastSwap: 0 };
-
   // Tren turístico que recorre la calle de vez en cuando (coordenadas de la capa de la calle).
   const train = { active: false, x: 0, prevMark: undefined, smokeAcc: 0 };
   const smoke = [];
@@ -526,7 +490,7 @@
     return game.runDistance / CONFIG.PX_PER_METER;
   }
 
-  const difficulty = () => clamp(meters() / 2500, 0, 1);
+  const difficulty = () => clamp(meters() / 4200, 0, 1);
 
   // =====================================================================
   // PERSISTENCIA
@@ -1135,7 +1099,7 @@
   }
 
   function resetPlayer() {
-    player.y = CONFIG.GROUND_Y - player.h / 2;
+    player.y = ROAD_Y - player.h / 2;
     player.vy = 0;
     player.thrust = 0;
     player.onGround = true;
@@ -1170,7 +1134,7 @@
     game.targetSpeed = CONFIG.BASE_SPEED;
     game.patternCount = 0;
     game.lastPattern = '';
-    game.nextSpawnX = view.w + 420;
+    game.nextSpawnX = view.w + 680;
     game.deathTimer = 0;
     game.shake = 0;
     game.flash = 0;
@@ -1285,7 +1249,7 @@
 
   const ZAPPER_PATTERNS = {
     single(x, d) {
-      const len = rand(120, 190 + 40 * d);
+      const len = rand(96, 145 + 28 * d);
       const angle = pick([0, Math.PI / 2, Math.PI / 2, Math.PI / 4, -Math.PI / 4]);
       const { hx, hy } = extents(len, angle);
       addZapper(x + hx + NR, rand(ZAP_MIN_Y + hy, ZAP_MAX_Y - hy), len, angle);
@@ -1293,15 +1257,15 @@
     },
 
     rotating(x, d) {
-      const len = rand(130, 175);
+      const len = rand(108, 145);
       const r = len / 2;
-      const spin = pick([-1, 1]) * rand(1.1, 1.7 + 0.6 * d);
+      const spin = pick([-1, 1]) * rand(0.65, 1.05 + 0.35 * d);
       addZapper(x + r + NR, rand(ZAP_MIN_Y + r, ZAP_MAX_Y - r), len, rand(0, Math.PI), spin);
       return 2 * (r + NR);
     },
 
     gate(x, d) {
-      const gap = rand(200, 225) - 35 * d;
+      const gap = rand(248, 286) - 18 * d;
       const center = rand(ZAP_MIN_Y + gap / 2 + 30, ZAP_MAX_Y - gap / 2 - 30);
       const topEnd = center - gap / 2;
       const botStart = center + gap / 2;
@@ -1318,8 +1282,8 @@
     },
 
     stairs(x, d) {
-      const count = d > 0.5 ? 3 : 2;
-      const spacing = Math.max(game.speed, CONFIG.BASE_SPEED) * rand(0.6, 0.75);
+      const count = d > 0.72 ? 3 : 2;
+      const spacing = Math.max(game.speed, CONFIG.BASE_SPEED) * rand(0.85, 1.05);
       const startLow = Math.random() < 0.5;
       const mid = (ZAP_MIN_Y + ZAP_MAX_Y) / 2;
       let width = 0;
@@ -1432,14 +1396,14 @@
     let width;
     let gapTime;
 
-    const coinTurn = game.patternCount === 0 || (game.lastPattern !== 'coins' && Math.random() < 0.38);
+    const coinTurn = game.patternCount === 0 || (game.lastPattern !== 'coins' && Math.random() < 0.52);
     if (coinTurn) {
       width = spawnCoins(x);
       game.lastPattern = 'coins';
       gapTime = rand(0.45, 0.8);
     } else {
       const r = Math.random();
-      const rotChance = 0.12 + 0.3 * d;
+      const rotChance = 0.05 + 0.16 * d;
       let kind = 'single';
       if (r < rotChance) kind = 'rotating';
       else if (r < rotChance + 0.22) kind = 'gate';
@@ -1450,7 +1414,7 @@
         spawnCoinLineSafe(x - 60, width + 120);
       }
       game.lastPattern = kind;
-      gapTime = lerp(1.15, 0.75, d) * rand(0.85, 1.2);
+      gapTime = lerp(1.65, 1.12, d) * rand(0.92, 1.22);
     }
 
     game.patternCount++;
@@ -1503,7 +1467,7 @@
   function emitDust(count, spread) {
     for (let i = 0; i < count; i++) {
       emit({
-        x: player.x + rand(-spread, spread), y: CONFIG.GROUND_Y - 2,
+        x: player.x + rand(-spread, spread), y: ROAD_Y - 2,
         vx: rand(-120, 60) - game.speed * 0.5, vy: rand(-90, -20),
         life: rand(0.3, 0.55), size: rand(3, 6),
         color: '#c9c2dd', kind: 'smoke', add: false, drag: 3,
@@ -1587,8 +1551,8 @@
       p.vy += p.g * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      if (p.bounce && p.y > CONFIG.GROUND_Y) {
-        p.y = CONFIG.GROUND_Y;
+      if (p.bounce && p.y > ROAD_Y) {
+        p.y = ROAD_Y;
         p.vy *= -0.35;
       }
     }
@@ -1622,7 +1586,7 @@
     player.y += player.vy * dt;
 
     const top = CONFIG.CEILING_Y + player.h / 2;
-    const bottom = CONFIG.GROUND_Y - player.h / 2;
+    const bottom = ROAD_Y - player.h / 2;
 
     if (player.y <= top) {
       player.y = top;
@@ -1645,7 +1609,7 @@
 
   function updateDeadPlayer(dt) {
     player.thrust = damp(player.thrust, 0, 10, dt);
-    const restY = CONFIG.GROUND_Y - 24;
+    const restY = ROAD_Y - 24;
 
     if (!player.onGround) {
       player.vy = Math.min(player.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL * 1.4);
@@ -1703,7 +1667,7 @@
   }
 
   function getHitbox() {
-    return { x: player.x - 14, y: player.y - 36, w: 32, h: 74 };
+    return { x: player.x - 12, y: player.y - 32, w: 26, h: 64 };
   }
 
   function checkCollisions() {
@@ -1773,15 +1737,7 @@
   }
 
   // Efectos visuales: se actualizan una vez por frame (no afectan a la jugabilidad).
-  function updateCrowdAnim() {
-    const now = performance.now();
-    if (now - crowdAnim.lastSwap < CROWD.FRAME_MS) return;
-    crowdAnim.lastSwap = now;
-    crowdAnim.frame = (crowdAnim.frame + 1) % CROWD.FRAMES;
-  }
-
   function updateEffects(dt) {
-    updateCrowdAnim();
     const alive = game.state === 'menu' || game.state === 'playing';
 
     if (game.state === 'playing' && player.thrust > 0.2) {
@@ -2127,59 +2083,201 @@
     }
   }
 
-  // Hash estable por índice: los grupos no saltan de sitio ni de tira al hacer scroll.
+  // Hash estable por índice: los grupos no saltan de sitio al hacer scroll.
   function crowdHash(i, salt) {
     const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
     return x - Math.floor(x);
   }
 
-  // Simpatizantes en la acera: recorte entero, 100 % opacos, anclados por los pies.
+  let signSprites = null;
+  let parade = null;
+
+  function paintRoundRect(g, x, y, w, h, r) {
+    g.beginPath();
+    if (g.roundRect) g.roundRect(x, y, w, h, r);
+    else g.rect(x, y, w, h);
+  }
+
+  function makeSignSprite(text) {
+    const font = '28px "Lilita One", "Arial Black", system-ui, sans-serif';
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = font;
+    const boardH = 42;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(measure.measureText(text).width) + 48;
+    c.height = boardH + 18;
+    const g = c.getContext('2d');
+    g.font = font;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+
+    g.fillStyle = '#fffdf6';
+    g.strokeStyle = '#5a2848';
+    g.lineWidth = 4;
+    paintRoundRect(g, 2, 2, c.width - 4, boardH - 4, 10);
+    g.fill();
+    g.stroke();
+
+    g.fillStyle = '#ffd60a';
+    paintRoundRect(g, 8, 7, c.width - 16, 7, 3);
+    g.fill();
+
+    g.lineWidth = 5;
+    g.strokeStyle = 'rgba(90, 30, 60, 0.95)';
+    g.strokeText(text, c.width / 2, 27);
+    g.fillStyle = '#d4145a';
+    g.fillText(text, c.width / 2, 27);
+
+    g.strokeStyle = '#5a2848';
+    g.lineWidth = 4;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(c.width / 2, boardH - 4);
+    g.lineTo(c.width / 2, c.height - 2);
+    g.stroke();
+    return c;
+  }
+
+  function crowdSigns() {
+    if (!signSprites) signSprites = SIGN_PHRASES.map(makeSignSprite);
+    return signSprites;
+  }
+
+  // La calle se arma una sola vez: personas distintas en grupos, con o sin cartel.
+  function crowdParade() {
+    if (parade) return parade;
+    if (!CROWD_KEYS.every((key) => ready(images[key]))) return null;
+
+    const fans = CROWD_KEYS.map((key) => {
+      const img = images[key];
+      return {
+        key,
+        aspect: (img.naturalWidth || img.width) / (img.naturalHeight || img.height),
+        kid: key === 'fanKid',
+      };
+    });
+    const items = [];
+    let x = 30;
+    let i = 0;
+    while (x < 7200) {
+      const roll = crowdHash(i, 1);
+      const count = roll < 0.22 ? 1 : roll < 0.58 ? 2 : 3;
+      const used = new Set();
+      const members = [];
+      for (let n = 0; n < count; n++) {
+        let at = (crowdHash(i, 10 + n) * fans.length) | 0;
+        for (let t = 0; t < fans.length && used.has(fans[at].key); t++) at = (at + 1) % fans.length;
+        used.add(fans[at].key);
+        members.push(fans[at]);
+      }
+
+      let cursor = x;
+      let tallest = 0;
+      const phase = crowdHash(i, 5) * TAU;
+      members.forEach((fan, n) => {
+        const scale = (fan.kid ? 0.66 : 0.9) + crowdHash(i, 20 + n) * 0.1;
+        const h = CROWD.HEIGHT * scale;
+        const w = h * fan.aspect;
+        items.push({
+          kind: 'person',
+          key: fan.key,
+          x: cursor,
+          w, h,
+          flip: crowdHash(i, 30 + n) < 0.4,
+          phase: phase + n * 0.4,
+        });
+        tallest = Math.max(tallest, h);
+        cursor += w * 0.74;
+      });
+
+      const span = Math.max(8, cursor - x);
+      const withSign = count > 1;
+      if (withSign) {
+        items.push({
+          kind: 'sign',
+          phrase: (crowdHash(i, 4) * SIGN_PHRASES.length) | 0,
+          x: x + span * 0.5,
+          head: tallest,
+          span,
+          phase,
+        });
+      }
+      x = cursor + 78 + crowdHash(i, 6) * 70;
+      i += 1;
+    }
+    parade = { items, period: x };
+    return parade;
+  }
+
+  // Simpatizantes en la acera, anclados por los pies y con la luz de la ciudad.
   function drawCrowd() {
-    const sheets = [images.crowd1, images.crowd2];
+    const layout = crowdParade();
+    if (!layout) return;
+    const signs = crowdSigns();
     const off = game.scroll * PARALLAX.town;
-    const spacing = CROWD.SPACING;
-    const first = Math.floor(off / spacing) - 1;
-    const last = Math.ceil((off + view.w) / spacing) + 1;
-    const G = CONFIG.GROUND_Y;
+    const first = Math.floor((off - 40) / layout.period);
+    const last = Math.ceil((off + view.w + 40) / layout.period);
+    const feet = CONFIG.GROUND_Y + CROWD.FOOT;
+    const dim = 1 - game.light;
+    const lightFilter = CAN_FILTER && dim > 0.01
+      ? `brightness(${(1 - 0.45 * dim).toFixed(3)}) saturate(${(1 - 0.35 * dim).toFixed(3)})`
+      : 'none';
 
     ctx.save();
-    ctx.filter = 'none';
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    for (let i = first; i <= last; i++) {
-      if (crowdHash(i, 1) < 0.12) continue;
-      const img = sheets[crowdHash(i, 2) < 0.5 ? 0 : 1];
-      if (!ready(img)) continue;
+    for (let k = first; k <= last; k++) {
+      const base = k * layout.period - off;
+      for (const it of layout.items) {
+        const bob = Math.sin(game.time * 2.2 + it.phase) * 1.3;
+        if (it.kind === 'person') {
+          const img = images[it.key];
+          if (!ready(img)) continue;
+          const x = base + it.x;
+          if (x > view.w + 12 || x + it.w < -12) continue;
+          const y = Math.round(feet - it.h + bob);
 
-      const sheetW = img.naturalWidth || img.width;
-      const sheetH = img.naturalHeight || img.height;
-      const srcW = CROWD.FRAME_W || (sheetW / CROWD.FRAMES | 0);
-      const srcH = sheetH;
-      const crop = CROWD.EDGE_CROP | 0;
-      const currentFrame = (crowdAnim.frame + ((crowdHash(i, 3) * CROWD.FRAMES) | 0)) % CROWD.FRAMES;
-      const sx = currentFrame * srcW + crop;
-      const sy = 0;
-      const sw = srcW - crop * 2;
-      const sh = srcH;
-      if (sw < 1 || sx < 0 || sx + sw > sheetW) continue;
+          ctx.filter = 'none';
+          ctx.fillStyle = 'rgba(20, 10, 36, 0.3)';
+          ctx.beginPath();
+          ctx.ellipse(x + it.w / 2, feet + 1, Math.min(15, it.w * 0.2), 3, 0, 0, TAU);
+          ctx.fill();
 
-      const scale = 0.94 + crowdHash(i, 4) * 0.14;
-      const h = CROWD.HEIGHT * scale;
-      const w = h * (sw / sh);
-      const dx = Math.round(i * spacing + (crowdHash(i, 5) - 0.5) * spacing * 0.28 - off);
-      if (dx > view.w + 12 || dx + w < -12) continue;
-      const dy = Math.round(G + CROWD.FOOT - h);
-
-      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, Math.round(w), Math.round(h));
+          ctx.filter = lightFilter;
+          ctx.save();
+          if (it.flip) {
+            ctx.translate(Math.round(x + it.w), 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img, 0, y, it.w, it.h);
+          } else {
+            ctx.drawImage(img, x, y, it.w, it.h);
+          }
+          ctx.restore();
+        } else {
+          const sign = signs[it.phrase];
+          const aspect = sign.width / sign.height;
+          let sw = it.span * 1.05;
+          let sh = sw / aspect;
+          if (sh > 30) {
+            sh = 30;
+            sw = sh * aspect;
+          }
+          const x = base + it.x - sw / 2;
+          const y = Math.round(feet - it.head - sh + 4 + bob);
+          if (x > view.w + 20 || x + sw < -20) continue;
+          ctx.filter = lightFilter;
+          ctx.drawImage(sign, x, y, sw, sh);
+        }
+      }
     }
 
     ctx.restore();
+    ctx.filter = 'none';
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
   }
 
   function drawTrain() {
@@ -2554,11 +2652,11 @@
   // Sombra en el suelo: se encoge y se desvanece con la altura.
   function drawShadow() {
     const feet = player.y + player.h / 2;
-    const h = Math.max(0, CONFIG.GROUND_Y - feet);
+    const h = Math.max(0, ROAD_Y - feet);
     const t = clamp(1 - h / 360, 0.12, 1);
     ctx.fillStyle = `rgba(15, 8, 30, ${0.38 * t})`;
     ctx.beginPath();
-    ctx.ellipse(player.x + 2, CONFIG.GROUND_Y + 3, 8 + 20 * t, 2 + 4 * t, 0, 0, TAU);
+    ctx.ellipse(player.x + 2, ROAD_Y + 2, 8 + 20 * t, 2 + 4 * t, 0, 0, TAU);
     ctx.fill();
   }
 
@@ -2606,10 +2704,9 @@
     const flying = !dead && !player.onGround;
     const t = game.time;
 
-    // Rebote al correr (más alto en la pose de paso) e inclinación hacia delante.
-    const bob = running ? -Math.abs(Math.sin(player.runPhase - Math.PI / 4)) * 3.5 : 0;
-    const lean = running ? 0.06 + Math.sin(player.runPhase * 2) * 0.015 : 0;
-    // Flotación y balanceo suave en el aire.
+    // El sprite ya trae el ciclo de carrera. Solo un rebote corto, al ritmo de los pasos.
+    const bob = running ? -Math.abs(Math.sin(player.runPhase)) * 4 : 0;
+    const lean = running ? 0.05 : 0;
     const hover = flying ? Math.sin(t * 5.2) * 2.2 : 0;
     const sway = flying ? Math.sin(t * 2.6) * 0.035 : 0;
 
@@ -2949,7 +3046,7 @@
   resize();
   // Se arranca en la escena del Santuario, con la iglesia ya visible a la derecha.
   game.scroll = (STREET.marks.sanctuary - view.w * 0.95) / PARALLAX.town;
-  if (document.fonts) document.fonts.ready.then(buildCoinSprites);
+  if (document.fonts) document.fonts.ready.then(() => { buildCoinSprites(); signSprites = null; });
   setMuteUI();
   dom.startRecord.textContent = `${game.record} kW`;
   updateHUD();

@@ -1,6 +1,11 @@
-# Datos de jugadores (nombres y WhatsApp): nunca subir
+# Datos de jugadores (nombres y WhatsApp) y clave de administrador: nunca subir
 data/
 *.csv
+
+# Contenido editado desde el panel de campaña (se genera en el servidor)
+config.json
+pagina_publica.json
+uploads/
 
 # Sistema / temporales
 .DS_Store

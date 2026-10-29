@@ -9,17 +9,27 @@ sirven al público: la API solo devuelve nombre y puntaje.
 Exportar participantes (solo desde este mismo PC):
       http://localhost:8080/admin-exportar               todos (para premios)
       http://localhost:8080/admin-exportar?solo=campana  solo quienes aceptaron info de campaña
+
+Panel de campaña: http://localhost:8080/admin.html
+  Formulario con título, textos, colores y enlaces de YouTube/TikTok. Pide la clave
+  de administrador, que se genera sola en data/admin_key.txt y se muestra al arrancar
+  (o se fija con la variable de entorno ADMIN_KEY). Se guarda en config.json y
+  landing.html lo muestra al público.
 """
 
 import csv
 import io
 import ipaddress
 import json
+import os
 import re
 import secrets
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -28,9 +38,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DATA_FILE = DATA_DIR / "leaderboard.json"
+ADMIN_KEY_FILE = DATA_DIR / "admin_key.txt"
+CONFIG_FILE = ROOT / "config.json"
+MAX_DISCARD_BYTES = 1024 * 1024
 BOARD_SIZE = 10
 MAX_SCORE = 100_000
-PRIVATE_PREFIXES = ("/data/", "/server.py")
+PRIVATE_PREFIXES = ("/data/", "/server.py", "/.git")
 LETTER_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]")
 EXPORT_PATH = "/admin-exportar"
 # Un túnel (cloudflared, localtunnel, ngrok…) se conecta desde 127.0.0.1, así que la IP no basta:
@@ -38,6 +51,190 @@ EXPORT_PATH = "/admin-exportar"
 PROXY_HEADERS = ("Cf-Connecting-Ip", "Cf-Ray", "X-Forwarded-For", "X-Forwarded-Host", "X-Real-Ip", "Forwarded", "Via")
 
 lock = threading.Lock()
+config_lock = threading.Lock()
+
+DEFAULT_CONFIG = {
+    "texts": {
+        "heroTitle": "¡Gracias por llenar de energía a Biblián!",
+        "heroText": "Tu puntaje ya está registrado. Así como recargaste la ciudad en el juego, juntos podemos iluminar el futuro de Biblián.",
+        "ctaText": "¡Volver a jugar!",
+    },
+    "colors": {
+        "primaryColor": "#2563eb",
+        "backgroundColor": "#f8fafc",
+    },
+    # El panel envía youtubeUrl y tiktokUrls; los id y enlaces canónicos los calcula el servidor al guardar.
+    "media": {
+        "youtubeUrl": "",
+        "youtubeId": "",
+        "youtubeVertical": False,
+        "tiktoks": [],
+    },
+}
+TEXT_LIMITS = {"heroTitle": 200, "heroText": 1000, "ctaText": 60}
+MAX_TIKTOKS = 12
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+YOUTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+TIKTOK_VIDEO_ID_RE = re.compile(r"^\d{8,25}$")
+
+
+def load_admin_key():
+    env_key = os.environ.get("ADMIN_KEY", "").strip()
+    if env_key:
+        return env_key
+    try:
+        key = ADMIN_KEY_FILE.read_text(encoding="utf-8").strip()
+        if key:
+            return key
+    except FileNotFoundError:
+        pass
+    DATA_DIR.mkdir(exist_ok=True)
+    key = secrets.token_urlsafe(12)
+    ADMIN_KEY_FILE.write_text(key, encoding="utf-8")
+    return key
+
+
+ADMIN_KEY = load_admin_key()
+
+
+def load_config():
+    try:
+        stored = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        stored = {}
+    merged = {}
+    for section, defaults in DEFAULT_CONFIG.items():
+        values = stored.get(section) if isinstance(stored.get(section), dict) else {}
+        merged[section] = {k: values.get(k, v) for k, v in defaults.items()}
+
+    media = stored.get("media") if isinstance(stored.get("media"), dict) else {}
+    tiktoks = media.get("tiktoks")
+    if not isinstance(tiktoks, list):
+        # Formato anterior: un solo TikTok en tiktokUrl / tiktokId / tiktokCite.
+        tiktoks = [{"url": media.get("tiktokUrl", ""), "id": media.get("tiktokId", ""), "cite": media.get("tiktokCite", "")}]
+    merged["media"]["tiktoks"] = [
+        {"url": str(t.get("url", "")), "id": t["id"], "cite": str(t.get("cite", ""))}
+        for t in tiktoks
+        if isinstance(t, dict) and TIKTOK_VIDEO_ID_RE.match(str(t.get("id", "")))
+    ]
+    return merged
+
+
+def parse_youtube(url):
+    """Devuelve (id, es_vertical) de un enlace de YouTube; acepta watch, youtu.be, shorts, embed y live."""
+    parts = urllib.parse.urlsplit(url.strip())
+    host = (parts.hostname or "").lower()
+    for prefix in ("www.", "m.", "music."):
+        if host.startswith(prefix):
+            host = host[len(prefix):]
+    segments = [s for s in parts.path.split("/") if s]
+    video_id, vertical = "", False
+    if parts.scheme in ("http", "https"):
+        if host == "youtu.be" and segments:
+            video_id = segments[0]
+        elif host in ("youtube.com", "youtube-nocookie.com"):
+            if parts.path == "/watch":
+                video_id = (urllib.parse.parse_qs(parts.query).get("v") or [""])[0]
+            elif len(segments) >= 2 and segments[0] in ("shorts", "embed", "live"):
+                video_id, vertical = segments[1], segments[0] == "shorts"
+    if not YOUTUBE_ID_RE.match(video_id):
+        raise ValueError("No reconozco el enlace de YouTube. Copia el enlace del video (por ejemplo, https://youtu.be/…).")
+    return video_id, vertical
+
+
+def clean_config(data):
+    """Solo acepta los campos del panel con valores seguros; lo que no viene se conserva."""
+    if not isinstance(data, dict):
+        raise ValueError("Formato de configuración inválido.")
+    current = load_config()
+    for key, value in (data.get("texts") or {}).items():
+        if key in DEFAULT_CONFIG["texts"]:
+            if not isinstance(value, str):
+                raise ValueError(f"Texto inválido en {key}.")
+            current["texts"][key] = value.strip()[: TEXT_LIMITS[key]]
+    for key, value in (data.get("colors") or {}).items():
+        if key in DEFAULT_CONFIG["colors"]:
+            if not isinstance(value, str) or not COLOR_RE.match(value):
+                raise ValueError("Los colores deben tener el formato #RRGGBB.")
+            current["colors"][key] = value.lower()
+
+    media = data.get("media") or {}
+    if "youtubeUrl" in media:
+        url = str(media["youtubeUrl"] or "").strip()[:500]
+        video_id, vertical = parse_youtube(url) if url else ("", False)
+        current["media"].update(youtubeUrl=url, youtubeId=video_id, youtubeVertical=vertical)
+    if "tiktokUrls" in media:
+        urls = media["tiktokUrls"]
+        if not isinstance(urls, list):
+            raise ValueError("Formato de TikTok inválido.")
+        urls = [u.strip()[:500] for u in urls if isinstance(u, str) and u.strip()]
+        if len(urls) > MAX_TIKTOKS:
+            raise ValueError(f"Puedes poner hasta {MAX_TIKTOKS} videos de TikTok.")
+        known = {t["url"]: t for t in current["media"]["tiktoks"]}
+        tiktoks, seen = [], set()
+        for number, url in enumerate(urls, 1):
+            entry = known.get(url)
+            if not entry:
+                video_id, cite = resolve_tiktok(url)
+                if not video_id:
+                    raise ValueError(f"No reconozco el enlace de TikTok n.º {number}. Copia el enlace del video desde TikTok y pégalo de nuevo.")
+                entry = {"url": url, "id": video_id, "cite": cite}
+            if entry["id"] not in seen:
+                seen.add(entry["id"])
+                tiktoks.append(entry)
+        current["media"]["tiktoks"] = tiktoks
+    return current
+
+
+def save_config(config):
+    tmp = CONFIG_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(CONFIG_FILE)
+
+
+TIKTOK_ID_RE = re.compile(r"/(?:video|embed/v2|player/v1|v)/(\d{8,25})")
+TIKTOK_USER_RE = re.compile(r"/(@[A-Za-z0-9._]{1,40})/video/")
+
+
+def is_tiktok_host(host):
+    host = (host or "").lower()
+    return host == "tiktok.com" or host.endswith(".tiktok.com")
+
+
+class TikTokOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    # Los enlaces cortos redirigen varias veces: nunca se sigue una redirección fuera de TikTok.
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not is_tiktok_host(urllib.parse.urlsplit(newurl).hostname):
+            raise urllib.error.HTTPError(newurl, code, "Redirección fuera de TikTok", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def tiktok_from_path(path):
+    match = TIKTOK_ID_RE.search(path)
+    if not match:
+        return "", ""
+    video_id = match.group(1)
+    user = TIKTOK_USER_RE.search(path)
+    cite = f"https://www.tiktok.com/{user.group(1)}/video/{video_id}" if user else f"https://www.tiktok.com/embed/v2/{video_id}"
+    return video_id, cite
+
+
+def resolve_tiktok(url):
+    """Devuelve (id, enlace canónico) de un video de TikTok; los enlaces cortos de la app se resuelven."""
+    parts = urllib.parse.urlsplit(url.strip())
+    if parts.scheme not in ("http", "https") or not is_tiktok_host(parts.hostname):
+        return "", ""
+    video_id, cite = tiktok_from_path(parts.path)
+    if video_id:
+        return video_id, cite
+    opener = urllib.request.build_opener(TikTokOnlyRedirects)
+    request = urllib.request.Request(urllib.parse.urlunsplit(parts), headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with opener.open(request, timeout=8) as resp:
+            final = resp.geturl()
+    except (urllib.error.URLError, ValueError, TimeoutError):
+        return "", ""
+    return tiktok_from_path(urllib.parse.urlsplit(final).path)
 
 
 def load_rows():
@@ -108,6 +305,14 @@ class GameHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        super().end_headers()
+
+    def list_directory(self, path):
+        self.send_error(HTTPStatus.NOT_FOUND)
+        return None
+
     def send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -120,6 +325,47 @@ class GameHandler(SimpleHTTPRequestHandler):
     def is_private(self):
         path = self.path.split("?", 1)[0].lower()
         return any(path.startswith(p) for p in PRIVATE_PREFIXES)
+
+    def is_admin(self):
+        key = self.headers.get("X-Admin-Key", "")
+        return bool(key) and secrets.compare_digest(key.encode("utf-8"), ADMIN_KEY.encode("utf-8"))
+
+    def read_body(self, limit):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length > limit:
+            self.discard_body(length)
+            raise OverflowError
+        return self.rfile.read(length)
+
+    def discard_body(self, length=None):
+        # Si se responde sin leer el cuerpo, el navegador ve un corte de conexión en vez del error.
+        remaining = int(self.headers.get("Content-Length", 0) or 0) if length is None else length
+        if remaining > MAX_DISCARD_BYTES:
+            self.close_connection = True
+            return
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 64 * 1024))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+
+    def reject_unauthorized(self):
+        self.discard_body()
+        return self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Clave de administrador incorrecta."})
+
+    def handle_config_post(self):
+        if not self.is_admin():
+            return self.reject_unauthorized()
+        try:
+            data = json.loads(self.read_body(64 * 1024) or b"{}")
+            with config_lock:
+                config = clean_config(data)
+                save_config(config)
+        except OverflowError:
+            return self.send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "Configuración demasiado grande."})
+        except (ValueError, json.JSONDecodeError) as err:
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(err) or "Datos inválidos."})
+        return self.send_json(HTTPStatus.OK, {"config": config})
 
     def is_local_admin(self):
         try:
@@ -148,6 +394,14 @@ class GameHandler(SimpleHTTPRequestHandler):
             with lock:
                 top = public_top(load_rows())
             return self.send_json(HTTPStatus.OK, {"top": top})
+        if path == "/api/config":
+            with config_lock:
+                config = load_config()
+            return self.send_json(HTTPStatus.OK, {"config": config})
+        if path == "/api/admin/check":
+            if not self.is_admin():
+                return self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Clave de administrador incorrecta."})
+            return self.send_json(HTTPStatus.OK, {"ok": True})
         if path.rstrip("/") == EXPORT_PATH:
             if not self.is_local_admin():
                 return self.send_error(HTTPStatus.NOT_FOUND)
@@ -162,7 +416,10 @@ class GameHandler(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self):
-        if self.path.split("?", 1)[0] != "/api/scores":
+        path = self.path.split("?", 1)[0]
+        if path == "/api/config":
+            return self.handle_config_post()
+        if path != "/api/scores":
             return self.send_error(HTTPStatus.NOT_FOUND)
         try:
             length = min(int(self.headers.get("Content-Length", 0)), 4096)
@@ -217,6 +474,7 @@ def main():
     server = ThreadingHTTPServer(("0.0.0.0", port), GameHandler)
     print(f"Biblián Jetpack en http://0.0.0.0:{port}/ (Ctrl+C para detener)", flush=True)
     print(f"Exportar participantes (solo en este PC): http://localhost:{port}{EXPORT_PATH}", flush=True)
+    print(f"Panel de campaña: http://localhost:{port}/admin.html  ·  Clave: {ADMIN_KEY}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

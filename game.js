@@ -87,7 +87,7 @@
     fanBarba: 'assets/crowd/crowd_barba.png',
   };
   // Se incrementa al regenerar las imágenes para invalidar la caché del navegador.
-  const ASSET_VERSION = 'hd11';
+  const ASSET_VERSION = 'hd14';
 
   const TAU = Math.PI * 2;
   // El fondo avanza más lento que el vuelo para que cada lugar se quede un rato en pantalla.
@@ -167,7 +167,7 @@
   // Unidades de mundo por píxel del sprite (200 px de alto → 80 unidades).
   const PLAYER_SCALE = 0.4;
   const PLAYER_PAD = 10;
-  const NOZZLE = { x: -14, y: 4 };
+  const NOZZLE = { x: -18, y: 9 };
 
   const NR = CONFIG.NODE_R;
   const ZAP_MIN_Y = CONFIG.CEILING_Y + NR + 4;

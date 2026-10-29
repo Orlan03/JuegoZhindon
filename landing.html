@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f8fafc">
+  <title>¡Gracias por participar! · Miguel Zhindón</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --on-primary: #ffffff;
+      --bg: #f8fafc;
+      --text: #0f172a;
+      --muted: color-mix(in srgb, var(--text) 68%, var(--bg));
+      --line: color-mix(in srgb, var(--text) 10%, transparent);
+      --surface: color-mix(in srgb, var(--text) 3%, var(--bg));
+      --tint: color-mix(in srgb, var(--primary) 14%, transparent);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap { width: min(1120px, 100%); margin: 0 auto; padding: 0 20px; }
+
+    /* Barra superior */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.01em; }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .brand small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1.2; }
+    .brand span:last-child { line-height: 1.25; }
+
+    .topbar-link {
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .topbar-link:hover { background: var(--surface); }
+
+    /* Portada */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(64px, 11vw, 120px) 0 clamp(56px, 8vw, 88px);
+      text-align: center;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: -40% -10% auto;
+      height: 140%;
+      background: radial-gradient(closest-side, var(--tint), transparent);
+      pointer-events: none;
+    }
+
+    .hero .wrap { position: relative; max-width: 780px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--tint);
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .badge::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    h1 {
+      margin: 22px 0 0;
+      font-size: clamp(34px, 6.2vw, 64px);
+      font-weight: 800;
+      line-height: 1.06;
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+    }
+
+    .lead {
+      margin: 22px auto 0;
+      max-width: 620px;
+      color: var(--muted);
+      font-size: clamp(16px, 2vw, 19px);
+      white-space: pre-line;
+      text-wrap: pretty;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 36px;
+      padding: 15px 28px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 10px 30px color-mix(in srgb, var(--primary) 35%, transparent);
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 45%, transparent); }
+    .btn svg { width: 18px; height: 18px; }
+
+    /* Secciones de videos */
+    .section { padding: clamp(40px, 6vw, 64px) 0; border-top: 1px solid var(--line); scroll-margin-top: 64px; }
+
+    .section-head { margin-bottom: 28px; }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 30px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .section-head p { margin: 6px 0 0; color: var(--muted); }
+
+    .eyebrow {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .youtube {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 20px;
+      background: #000;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+    }
+
+    .youtube.is-vertical { max-width: 380px; aspect-ratio: 9 / 16; }
+
+    .youtube iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+    .tiktok-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 24px;
+    }
+
+    .tiktok-card {
+      flex: 0 1 344px;
+      min-width: 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+    }
+
+    .tiktok-card .tiktok-embed {
+      max-width: 605px;
+      min-width: min(325px, 100%);
+      margin: 0 auto !important;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .tiktok-card .tiktok-embed a { color: var(--primary); font-weight: 700; }
+
+    footer {
+      margin-top: auto;
+      padding: 28px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">MZ</span>
+        <span>Miguel Zhindón<small>Biblián</small></span>
+      </div>
+      <a class="topbar-link" href="/">Jugar</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <span class="badge">Puntaje registrado</span>
+        <h1 id="title">¡Gracias por participar!</h1>
+        <p class="lead" id="thanks"></p>
+        <a class="btn" id="cta" href="/">
+          <span id="ctaText">Volver a jugar</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      </div>
+    </section>
+
+    <section class="section" id="youtubeSection" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Video destacado</span>
+          <h2>Conoce nuestra propuesta</h2>
+        </div>
+        <div class="youtube" id="youtube"></div>
+      </div>
+    </section>
+
+    <section class="section" id="tiktokSection" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">TikTok</span>
+          <h2>Síguenos en TikTok</h2>
+          <p>Mira, comparte y súmate a la campaña.</p>
+        </div>
+        <div class="tiktok-grid" id="tiktoks"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">© Miguel Zhindón · Biblián</div>
+  </footer>
+
+  <script>
+    'use strict';
+    (async () => {
+      const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+      const TIKTOK_ID = /^\d{8,25}$/;
+      const TIKTOK_CITE = /^https:\/\/www\.tiktok\.com\//;
+      const $ = (id) => document.getElementById(id);
+
+      function readableText(hex) {
+        const n = parseInt(hex.slice(1), 16);
+        const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#0f172a' : '#ffffff';
+      }
+
+      function applyColors({ primaryColor, backgroundColor }) {
+        const root = document.documentElement.style;
+        if (primaryColor) {
+          root.setProperty('--primary', primaryColor);
+          root.setProperty('--on-primary', readableText(primaryColor));
+        }
+        if (backgroundColor) {
+          root.setProperty('--bg', backgroundColor);
+          root.setProperty('--text', readableText(backgroundColor));
+          document.querySelector('meta[name="theme-color"]').content = backgroundColor;
+        }
+      }
+
+      function renderYoutube(id, vertical) {
+        const box = $('youtube');
+        box.classList.toggle('is-vertical', vertical);
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+        iframe.title = 'Video de YouTube';
+        iframe.loading = 'lazy';
+        iframe.allow = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        iframe.allowFullscreen = true;
+        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        box.appendChild(iframe);
+        $('youtubeSection').hidden = false;
+      }
+
+      function tiktokCard({ id, cite }) {
+        const card = document.createElement('div');
+        card.className = 'tiktok-card';
+        const quote = document.createElement('blockquote');
+        quote.className = 'tiktok-embed';
+        quote.cite = cite;
+        quote.dataset.videoId = id;
+        const section = document.createElement('section');
+        const link = document.createElement('a');
+        link.href = cite;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Ver video en TikTok';
+        section.appendChild(link);
+        quote.appendChild(section);
+        card.appendChild(quote);
+        return card;
+      }
+
+      function renderTiktoks(list) {
+        const valid = list.filter((t) => t && TIKTOK_ID.test(t.id || '') && TIKTOK_CITE.test(t.cite || ''));
+        if (!valid.length) return;
+        $('tiktoks').replaceChildren(...valid.map(tiktokCard));
+        $('tiktokSection').hidden = false;
+        const script = document.createElement('script');
+        script.src = 'https://www.tiktok.com/embed.js';
+        script.async = true;
+        document.body.appendChild(script);
+      }
+
+      let config = {};
+      try {
+        const res = await fetch('/api/config', { cache: 'no-store' });
+        config = (await res.json()).config || {};
+      } catch {
+        return;
+      }
+
+      const texts = config.texts || {};
+      const media = config.media || {};
+      applyColors(config.colors || {});
+      if (texts.heroTitle) {
+        $('title').textContent = texts.heroTitle;
+        document.title = `${texts.heroTitle} · Miguel Zhindón`;
+      }
+      $('thanks').textContent = texts.heroText || '';
+      if (texts.ctaText) $('ctaText').textContent = texts.ctaText;
+
+      if (YOUTUBE_ID.test(media.youtubeId || '')) renderYoutube(media.youtubeId, media.youtubeVertical === true);
+      renderTiktoks(Array.isArray(media.tiktoks) ? media.tiktoks : []);
+    })();
+  </script>
+</body>
+</html>

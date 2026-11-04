@@ -43,7 +43,8 @@ CONFIG_FILE = ROOT / "config.json"
 MAX_DISCARD_BYTES = 1024 * 1024
 BOARD_SIZE = 10
 MAX_SCORE = 100_000
-PRIVATE_PREFIXES = ("/data/", "/server.py", "/.git")
+PRIVATE_DIRS = ("data", "__pycache__")
+PRIVATE_SUFFIXES = (".py", ".pyc", ".tmp", ".part")
 LETTER_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]")
 # Deben coincidir con PARISHES en game.js.
 PARISHES = ("Centro Urbano", "Nazón", "San Francisco de Sageo", "Turupamba", "Jerusalén")
@@ -364,8 +365,20 @@ class GameHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def is_private(self):
-        path = self.path.split("?", 1)[0].lower()
-        return any(path.startswith(p) for p in PRIVATE_PREFIXES)
+        # Se decide sobre la ruta real en disco, no sobre la URL: "/%64ata/…" o "/DATA/…" llegan al
+        # mismo archivo que "/data/…" una vez decodificados por translate_path y por Windows.
+        try:
+            rel = Path(self.translate_path(self.path)).resolve().relative_to(ROOT)
+        except (ValueError, OSError):
+            return True
+        parts = [p.lower() for p in rel.parts]
+        if not parts:
+            return False
+        return (
+            parts[0] in PRIVATE_DIRS
+            or any(p.startswith(".") for p in parts)
+            or parts[-1].endswith(PRIVATE_SUFFIXES)
+        )
 
     def is_admin(self):
         key = self.headers.get("X-Admin-Key", "")

@@ -7,14 +7,14 @@ Los registros (con WhatsApp) se guardan en data/leaderboard.json y nunca se
 sirven al público: la API solo devuelve nombre y puntaje.
 
 Exportar participantes (solo desde este mismo PC):
-      http://localhost:8080/admin-exportar               todos (para premios)
-      http://localhost:8080/admin-exportar?solo=campana  solo quienes aceptaron info de campaña
+      http://localhost:8080/admin-exportar
 
 Panel de campaña: http://localhost:8080/admin.html
   Formulario con título, textos, colores y enlaces de YouTube/TikTok. Pide la clave
   de administrador, que se genera sola en data/admin_key.txt y se muestra al arrancar
   (o se fija con la variable de entorno ADMIN_KEY). Se guarda en config.json y
-  landing.html lo muestra al público.
+  landing.html lo muestra al público. Los videos MP4/WebM subidos desde el panel
+  se guardan en uploads/videos/.
 """
 
 import csv
@@ -45,6 +45,8 @@ BOARD_SIZE = 10
 MAX_SCORE = 100_000
 PRIVATE_PREFIXES = ("/data/", "/server.py", "/.git")
 LETTER_RE = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]")
+# Deben coincidir con PARISHES en game.js.
+PARISHES = ("Centro Urbano", "Nazón", "San Francisco de Sageo", "Turupamba", "Jerusalén")
 EXPORT_PATH = "/admin-exportar"
 # Un túnel (cloudflared, localtunnel, ngrok…) se conecta desde 127.0.0.1, así que la IP no basta:
 # cualquier petición que llegue reenviada por un proxy se trata como externa.
@@ -69,6 +71,8 @@ DEFAULT_CONFIG = {
         "youtubeId": "",
         "youtubeVertical": False,
         "tiktoks": [],
+        # Videos subidos desde el panel: solo se agregan o quitan con /api/videos.
+        "videos": [],
     },
 }
 TEXT_LIMITS = {"heroTitle": 200, "heroText": 1000, "ctaText": 60}
@@ -76,6 +80,18 @@ MAX_TIKTOKS = 12
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 YOUTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 TIKTOK_VIDEO_ID_RE = re.compile(r"^\d{8,25}$")
+
+VIDEO_DIR = ROOT / "uploads" / "videos"
+VIDEO_URL_PREFIX = "/uploads/videos/"
+VIDEO_TYPES = {".mp4": "video/mp4", ".webm": "video/webm"}
+VIDEO_NAME_RE = re.compile(r"^[0-9a-f]{16}\.(?:mp4|webm)$")
+# El túnel gratuito de Cloudflare rechaza subidas de más de 100 MB.
+MAX_VIDEO_MB = 95
+MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024
+MAX_VIDEOS = 12
+VIDEO_TITLE_MAX = 120
+STREAM_CHUNK = 256 * 1024
+RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 
 
 def load_admin_key():
@@ -117,7 +133,23 @@ def load_config():
         for t in tiktoks
         if isinstance(t, dict) and TIKTOK_VIDEO_ID_RE.match(str(t.get("id", "")))
     ]
+    videos = media.get("videos") if isinstance(media.get("videos"), list) else []
+    merged["media"]["videos"] = [
+        {"file": v["file"], "title": str(v.get("title", ""))[:VIDEO_TITLE_MAX]}
+        for v in videos
+        if isinstance(v, dict) and VIDEO_NAME_RE.match(str(v.get("file", ""))) and (VIDEO_DIR / v["file"]).is_file()
+    ]
     return merged
+
+
+def video_extension(head):
+    """Reconoce el formato por los primeros bytes, sin fiarse del nombre del archivo."""
+    if head[4:8] == b"ftyp":
+        # "qt  " es el .mov de iPhone: Chrome y Android no siempre lo reproducen.
+        return None if head[8:12] == b"qt  " else ".mp4"
+    if head[:4] == b"\x1a\x45\xdf\xa3":
+        return ".webm"
+    return None
 
 
 def parse_youtube(url):
@@ -252,8 +284,18 @@ def save_rows(rows):
     tmp.replace(DATA_FILE)
 
 
+def best_by_phone(rows):
+    """Cada partida registrada es una fila; aquí queda solo la mejor de cada WhatsApp."""
+    best = {}
+    for r in rows:
+        current = best.get(r["whatsapp"])
+        if current is None or (r["score"], -r["at"]) > (current["score"], -current["at"]):
+            best[r["whatsapp"]] = r
+    return best
+
+
 def public_top(rows):
-    ordered = sorted(rows, key=lambda r: (-r["score"], r["at"]))[:BOARD_SIZE]
+    ordered = sorted(best_by_phone(rows).values(), key=lambda r: (-r["score"], r["at"]))[:BOARD_SIZE]
     return [{"name": r["name"], "score": r["score"], "token": r["token"]} for r in ordered]
 
 
@@ -267,33 +309,32 @@ def international(phone):
     return f"593{phone[1:]}" if phone.startswith("0") else phone
 
 
-def campaign_consent_label(row):
-    if "consent_campaign" not in row:
-        return "Sin registro (no contactar)"
-    return "Sí" if row["consent_campaign"] else "No"
-
-
-def participants_csv(rows, campaign_only=False):
+def participants_csv(rows):
+    """Todas las partidas registradas, de mayor a menor puntaje, con el mejor de cada WhatsApp al lado."""
     ranked = sorted(rows, key=lambda r: (-r["score"], r["at"]))
+    best = {phone: r["score"] for phone, r in best_by_phone(rows).items()}
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=";", lineterminator="\r\n")
     writer.writerow([
-        "Puesto", "Nombre", "WhatsApp", "Enlace WhatsApp", "Puntaje (kW)", "Fecha de registro",
-        "Acepta info de campaña", "Fecha del consentimiento", "Versión del aviso",
+        "N.º", "Nombre", "WhatsApp", "Enlace WhatsApp", "¿Vive en Biblián?", "Parroquia",
+        "Puntaje (kW)", "Mejor puntaje de este WhatsApp (kW)",
+        "Fecha de registro", "Fecha del consentimiento", "Versión del aviso",
     ])
     for i, r in enumerate(ranked, 1):
-        if campaign_only and r.get("consent_campaign") is not True:
-            continue
         intl = international(r["whatsapp"])
         consent_at = r.get("consent_at")
+        es_biblian = r.get("es_biblian")
         writer.writerow([
             i,
             csv_safe(r["name"]),
             f"+{intl[:3]} {intl[3:5]} {intl[5:8]} {intl[8:]}" if intl.startswith("593") else r["whatsapp"],
             f"https://wa.me/{intl}",
+            {True: "Sí", False: "No"}.get(es_biblian, ""),
+            # Solo quien respondió "Sí" tiene parroquia; con "No" o sin respuesta la celda queda vacía.
+            (r.get("parroquia") or "") if es_biblian is True else "",
             r["score"],
+            best[r["whatsapp"]],
             datetime.fromtimestamp(r["at"]).strftime("%Y-%m-%d %H:%M"),
-            campaign_consent_label(r),
             datetime.fromtimestamp(consent_at).strftime("%Y-%m-%d %H:%M") if consent_at else "",
             csv_safe(r.get("privacy_version", "")),
         ])
@@ -367,6 +408,153 @@ class GameHandler(SimpleHTTPRequestHandler):
             return self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(err) or "Datos inválidos."})
         return self.send_json(HTTPStatus.OK, {"config": config})
 
+    def iter_body(self, limit):
+        """Entrega el cuerpo por trozos. Admite "chunked" porque algunos túneles lo reenvían así."""
+        if "chunked" in self.headers.get("Transfer-Encoding", "").lower():
+            total = 0
+            while True:
+                size = int(self.rfile.readline(1024).split(b";")[0].strip() or b"0", 16)
+                if size == 0:
+                    while self.rfile.readline(1024) not in (b"\r\n", b"\n", b""):
+                        pass
+                    return
+                total += size
+                if total > limit:
+                    raise OverflowError
+                while size:
+                    chunk = self.rfile.read(min(size, STREAM_CHUNK))
+                    if not chunk:
+                        raise ConnectionError
+                    size -= len(chunk)
+                    yield chunk
+                self.rfile.readline(1024)
+        remaining = int(self.headers.get("Content-Length", 0) or 0)
+        if remaining > limit:
+            self.discard_body(remaining)
+            raise OverflowError
+        while remaining:
+            chunk = self.rfile.read(min(remaining, STREAM_CHUNK))
+            if not chunk:
+                raise ConnectionError
+            remaining -= len(chunk)
+            yield chunk
+
+    def handle_video_upload(self):
+        if not self.is_admin():
+            return self.reject_unauthorized()
+        with config_lock:
+            full = len(load_config()["media"]["videos"]) >= MAX_VIDEOS
+        if full:
+            self.discard_body()
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": f"Ya hay {MAX_VIDEOS} videos. Borra uno para subir otro."})
+
+        title = " ".join(urllib.parse.unquote(self.headers.get("X-Video-Title", "")).split())[:VIDEO_TITLE_MAX]
+        VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+        token = secrets.token_hex(8)
+        part = VIDEO_DIR / f"{token}.part"
+        try:
+            with part.open("wb") as out:
+                for chunk in self.iter_body(MAX_VIDEO_BYTES):
+                    out.write(chunk)
+            with part.open("rb") as f:
+                ext = video_extension(f.read(12))
+        except OverflowError:
+            part.unlink(missing_ok=True)
+            self.close_connection = True
+            return self.send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {
+                "error": f"El video pesa más de {MAX_VIDEO_MB} MB. Expórtalo más liviano (720p suele bastar).",
+            })
+        except (OSError, ValueError):
+            part.unlink(missing_ok=True)
+            self.close_connection = True
+            try:
+                return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "La subida se interrumpió. Inténtalo de nuevo."})
+            except OSError:
+                return None
+
+        if not ext:
+            part.unlink(missing_ok=True)
+            return self.send_json(HTTPStatus.BAD_REQUEST, {
+                "error": "Solo se aceptan videos MP4 o WebM. Si es un video de iPhone (.mov), expórtalo como MP4.",
+            })
+        name = f"{token}{ext}"
+        part.replace(VIDEO_DIR / name)
+        with config_lock:
+            config = load_config()
+            videos = config["media"]["videos"]
+            if len(videos) >= MAX_VIDEOS:
+                (VIDEO_DIR / name).unlink(missing_ok=True)
+                return self.send_json(HTTPStatus.BAD_REQUEST, {"error": f"Ya hay {MAX_VIDEOS} videos. Borra uno para subir otro."})
+            videos.append({"file": name, "title": title})
+            save_config(config)
+        return self.send_json(HTTPStatus.OK, {"videos": videos})
+
+    def handle_video_delete(self):
+        if not self.is_admin():
+            return self.reject_unauthorized()
+        try:
+            name = str(json.loads(self.read_body(4096) or b"{}").get("file", ""))
+        except (OverflowError, ValueError, AttributeError):
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Datos inválidos."})
+        with config_lock:
+            config = load_config()
+            videos = config["media"]["videos"]
+            kept = [v for v in videos if v["file"] != name]
+            if len(kept) == len(videos):
+                return self.send_json(HTTPStatus.NOT_FOUND, {"error": "Ese video ya no existe."})
+            config["media"]["videos"] = kept
+            save_config(config)
+        (VIDEO_DIR / name).unlink(missing_ok=True)
+        return self.send_json(HTTPStatus.OK, {"videos": kept})
+
+    def send_video(self, name, head_only=False):
+        """Sirve un video con soporte de Range: Safari en iPhone no reproduce videos sin él."""
+        path = VIDEO_DIR / name
+        if not VIDEO_NAME_RE.match(name) or not path.is_file():
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        size = path.stat().st_size
+        start, end = 0, size - 1
+        partial = False
+        match = RANGE_RE.match(self.headers.get("Range", "").strip())
+        if match and (match.group(1) or match.group(2)):
+            if match.group(1):
+                start = int(match.group(1))
+                end = min(int(match.group(2)), size - 1) if match.group(2) else size - 1
+            else:
+                start = max(0, size - int(match.group(2)))
+            if start >= size or start > end:
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return None
+            partial = True
+
+        length = end - start + 1
+        self.send_response(HTTPStatus.PARTIAL_CONTENT if partial else HTTPStatus.OK)
+        self.send_header("Content-Type", VIDEO_TYPES[path.suffix])
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(length))
+        # El nombre es aleatorio y nunca se reutiliza: navegadores y Cloudflare pueden guardarlo en caché.
+        self.send_header("Cache-Control", "public, max-age=604800, immutable")
+        if partial:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.end_headers()
+        if head_only:
+            return None
+        try:
+            with path.open("rb") as f:
+                f.seek(start)
+                while length > 0:
+                    chunk = f.read(min(length, STREAM_CHUNK))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    length -= len(chunk)
+        except OSError:
+            self.close_connection = True
+        return None
+
     def is_local_admin(self):
         try:
             loopback = ipaddress.ip_address(self.client_address[0]).is_loopback
@@ -375,11 +563,9 @@ class GameHandler(SimpleHTTPRequestHandler):
         return loopback and not any(self.headers.get(h) for h in PROXY_HEADERS)
 
     def send_export(self):
-        campaign_only = "solo=campana" in self.path.split("?", 1)[-1]
         with lock:
-            body = participants_csv(load_rows(), campaign_only)
-        kind = "campana" if campaign_only else "participantes"
-        filename = f"{kind}_biblian_{datetime.now():%Y%m%d_%H%M}.csv"
+            body = participants_csv(load_rows())
+        filename = f"participantes_biblian_{datetime.now():%Y%m%d_%H%M}.csv"
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
@@ -406,11 +592,16 @@ class GameHandler(SimpleHTTPRequestHandler):
             if not self.is_local_admin():
                 return self.send_error(HTTPStatus.NOT_FOUND)
             return self.send_export()
+        if path.startswith(VIDEO_URL_PREFIX):
+            return self.send_video(path[len(VIDEO_URL_PREFIX):])
         if self.is_private():
             return self.send_error(HTTPStatus.NOT_FOUND)
         return super().do_GET()
 
     def do_HEAD(self):
+        path = self.path.split("?", 1)[0]
+        if path.startswith(VIDEO_URL_PREFIX):
+            return self.send_video(path[len(VIDEO_URL_PREFIX):], head_only=True)
         if self.is_private():
             return self.send_error(HTTPStatus.NOT_FOUND)
         return super().do_HEAD()
@@ -419,6 +610,10 @@ class GameHandler(SimpleHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == "/api/config":
             return self.handle_config_post()
+        if path == "/api/videos":
+            return self.handle_video_upload()
+        if path == "/api/videos/delete":
+            return self.handle_video_delete()
         if path != "/api/scores":
             return self.send_error(HTTPStatus.NOT_FOUND)
         try:
@@ -442,36 +637,42 @@ class GameHandler(SimpleHTTPRequestHandler):
             return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Puntaje inválido."})
         if data.get("consentPrize") is not True:
             return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Debes aceptar el aviso de privacidad para participar."})
+        # None = sin respuesta (una pestaña abierta con el juego anterior). Con "No" nunca se guarda parroquia.
+        es_biblian = data.get("es_biblian")
+        if es_biblian is not None and not isinstance(es_biblian, bool):
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Indica si vives en el cantón Biblián."})
+        parroquia = data.get("parroquia") if es_biblian else None
+        if es_biblian and parroquia not in PARISHES:
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Elige tu parroquia."})
         consent = {
             "consent_prize": True,
-            "consent_campaign": data.get("consentCampaign") is True,
             "consent_at": time.time(),
             "privacy_version": str(data.get("privacyVersion", ""))[:20],
         }
 
         with lock:
             rows = load_rows()
-            current = next((r for r in rows if r["whatsapp"] == phone), None)
-            if current and score <= current["score"]:
-                return self.send_json(HTTPStatus.CONFLICT, {
-                    "error": f"Ese WhatsApp ya tiene {current['score']} kW. Supera tu récord para actualizarlo.",
-                    "token": current["token"],
-                    "top": public_top(rows),
-                })
-            if current:
-                current.update(name=name, score=score, at=time.time(), **consent)
-                token = current["token"]
-            else:
-                token = secrets.token_hex(8)
-                rows.append({"name": name, "whatsapp": phone, "score": score, "at": time.time(), "token": token, **consent})
+            # Se guardan todas las partidas; el token se reutiliza para reconocer al jugador en el Top.
+            previous = next((r for r in rows if r["whatsapp"] == phone), None)
+            token = previous["token"] if previous else secrets.token_hex(8)
+            rows.append({
+                "name": name, "whatsapp": phone, "score": score, "at": time.time(), "token": token,
+                "es_biblian": es_biblian, "parroquia": parroquia, **consent,
+            })
             save_rows(rows)
             top = public_top(rows)
         return self.send_json(HTTPStatus.OK, {"token": token, "top": top})
 
 
+class GameServer(ThreadingHTTPServer):
+    # El juego pide unas 20 imágenes a la vez; con la cola por defecto (5) Windows rechaza
+    # las conexiones sobrantes y el túnel responde "actively refused".
+    request_queue_size = 128
+
+
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
-    server = ThreadingHTTPServer(("0.0.0.0", port), GameHandler)
+    server = GameServer(("0.0.0.0", port), GameHandler)
     print(f"Biblián Jetpack en http://0.0.0.0:{port}/ (Ctrl+C para detener)", flush=True)
     print(f"Exportar participantes (solo en este PC): http://localhost:{port}{EXPORT_PATH}", flush=True)
     print(f"Panel de campaña: http://localhost:{port}/admin.html  ·  Clave: {ADMIN_KEY}", flush=True)

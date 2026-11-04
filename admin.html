@@ -143,6 +143,38 @@
             </div>
           </section>
 
+          <section class="card p-6" data-instant>
+            <div class="flex items-baseline justify-between gap-3">
+              <h2 class="text-base font-semibold">Videos propios</h2>
+              <span id="videoCount" class="text-xs font-medium text-slate-500"></span>
+            </div>
+            <p class="mt-1 text-sm text-slate-500">Sube videos MP4 desde tu computadora o celular (máximo 95 MB cada uno). Se publican al instante, sin necesidad de «Guardar cambios».</p>
+
+            <ul id="videoList" class="mt-6 space-y-3"></ul>
+
+            <div id="videoUploader" class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+              <label class="field-label" for="videoTitle">Título del video <span class="font-normal text-slate-400">(opcional)</span></label>
+              <input id="videoTitle" type="text" maxlength="120" class="field-input" placeholder="Ej.: Recorrido por los barrios de Biblián">
+              <label class="field-label mt-4" for="videoFile">Archivo</label>
+              <input id="videoFile" type="file" accept="video/mp4,video/webm,.mp4,.webm"
+                     class="mt-1.5 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800">
+              <div id="videoProgress" class="mt-4 hidden">
+                <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div id="videoProgressBar" class="h-full w-0 rounded-full bg-indigo-600 transition-[width]"></div>
+                </div>
+              </div>
+              <div class="mt-4 flex flex-wrap items-center gap-3">
+                <button id="videoUploadBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+                  Subir video
+                </button>
+                <p id="videoStatus" role="status" class="text-sm font-medium text-slate-500"></p>
+              </div>
+            </div>
+            <p class="field-hint mt-3">Si el video es de iPhone (.mov), expórtalo como MP4 antes de subirlo. Para que cargue rápido en celulares, 720p suele bastar.</p>
+          </section>
+
           <div class="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
             <p id="saveStatus" role="status" class="text-sm font-medium text-slate-500 sm:mr-auto"></p>
             <button id="saveBtn" type="submit"
@@ -175,10 +207,15 @@
       const KEY_STORE = 'biblian-jetpack:admin-key';
       const HEX_RE = /^#[0-9a-f]{6}$/i;
       const MAX_TIKTOKS = 12;
+      const MAX_VIDEOS = 12;
+      const MAX_VIDEO_MB = 95;
+      const TRASH_ICON = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
       const $ = (id) => document.getElementById(id);
       const form = $('configForm');
       let adminKey = sessionStorage.getItem(KEY_STORE) || '';
       let dirty = false;
+      let videos = [];
+      let uploading = false;
 
       function readableText(hex) {
         const n = parseInt(hex.slice(1), 16);
@@ -213,7 +250,84 @@
         if (field('media.youtubeUrl').value.trim()) media.push('▶ YouTube');
         const tiktoks = tiktokUrls().length;
         if (tiktoks) media.push(`♪ ${tiktoks} TikTok`);
+        if (videos.length) media.push(`🎬 ${videos.length} video${videos.length > 1 ? 's' : ''}`);
         $('previewMedia').textContent = media.join('  ·  ');
+      }
+
+      function setVideoStatus(text, kind = '') {
+        const el = $('videoStatus');
+        el.textContent = text;
+        el.className = `text-sm font-medium ${{ ok: 'text-emerald-600', err: 'text-red-600', warn: 'text-amber-600' }[kind] || 'text-slate-500'}`;
+      }
+
+      function renderVideos(list) {
+        videos = list;
+        $('videoList').replaceChildren(...list.map((video, i) => {
+          const item = document.createElement('li');
+          item.className = 'flex items-center gap-3 rounded-xl border border-slate-200 p-2';
+          const thumb = document.createElement('video');
+          thumb.src = `/uploads/videos/${video.file}#t=0.1`;
+          thumb.preload = 'metadata';
+          thumb.muted = true;
+          thumb.playsInline = true;
+          thumb.className = 'h-16 w-24 flex-none rounded-lg bg-slate-900 object-cover';
+          const title = document.createElement('p');
+          title.className = 'min-w-0 flex-1 truncate text-sm font-semibold text-slate-700';
+          title.textContent = video.title || `Video ${i + 1}`;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'flex h-9 w-9 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600';
+          remove.setAttribute('aria-label', 'Borrar este video');
+          remove.innerHTML = TRASH_ICON;
+          remove.addEventListener('click', () => deleteVideo(video));
+          item.append(thumb, title, remove);
+          return item;
+        }));
+        const full = list.length >= MAX_VIDEOS;
+        $('videoCount').textContent = list.length ? `${list.length} de ${MAX_VIDEOS}` : '';
+        $('videoFile').disabled = full;
+        $('videoUploadBtn').disabled = full || uploading;
+        if (full) setVideoStatus(`Llegaste al máximo de ${MAX_VIDEOS} videos. Borra uno para subir otro.`, 'warn');
+        updatePreview();
+      }
+
+      function uploadVideo(file, title, onProgress) {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/videos');
+          xhr.setRequestHeader('X-Admin-Key', adminKey);
+          xhr.setRequestHeader('X-Video-Title', encodeURIComponent(title));
+          xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) onProgress(e.loaded / e.total);
+          });
+          xhr.addEventListener('load', () => {
+            let data = {};
+            try { data = JSON.parse(xhr.responseText); } catch { /* respuesta no JSON (p. ej. del túnel) */ }
+            if (xhr.status === 401) reject(Object.assign(new Error('Tu sesión expiró. Vuelve a entrar.'), { expired: true }));
+            else if (xhr.status === 413) reject(new Error(data.error || `El video pesa más de ${MAX_VIDEO_MB} MB.`));
+            else if (xhr.status < 200 || xhr.status >= 300) reject(new Error(data.error || 'No se pudo subir el video.'));
+            else resolve(data);
+          });
+          xhr.addEventListener('error', () => reject(new Error('Se cortó la conexión mientras subía el video. Inténtalo de nuevo.')));
+          xhr.send(file);
+        });
+      }
+
+      async function deleteVideo(video) {
+        if (!confirm(`¿Borrar «${video.title || 'este video'}»? Dejará de verse en la página.`)) return;
+        try {
+          const data = await api('/api/videos/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: video.file }),
+          });
+          renderVideos(data.videos);
+          setVideoStatus('Video borrado.', 'ok');
+        } catch (err) {
+          setVideoStatus(err.message, 'err');
+          if (err.expired) setTimeout(logout, 1500);
+        }
       }
 
       function tiktokUrls() {
@@ -284,7 +398,7 @@
         $('tiktokList').replaceChildren();
         (media.tiktoks || []).forEach((t) => addTiktokRow(t.url, true));
         if (!$('tiktokList').children.length) addTiktokRow();
-        updatePreview();
+        renderVideos(media.videos || []);
       }
 
       async function api(path, options = {}) {
@@ -350,11 +464,52 @@
         });
       });
 
-      form.addEventListener('input', markDirty);
+      form.addEventListener('input', (e) => {
+        if (!e.target.closest('[data-instant]')) markDirty();
+      });
 
       $('addTiktok').addEventListener('click', () => {
         addTiktokRow().focus();
         markDirty();
+      });
+
+      // --- Videos propios ---
+      $('videoTitle').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') e.preventDefault();
+      });
+
+      $('videoUploadBtn').addEventListener('click', async () => {
+        const file = $('videoFile').files[0];
+        if (!file) {
+          setVideoStatus('Elige primero un archivo de video.', 'err');
+          return;
+        }
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+          setVideoStatus(`El video pesa más de ${MAX_VIDEO_MB} MB. Expórtalo más liviano (720p suele bastar).`, 'err');
+          return;
+        }
+        uploading = true;
+        $('videoUploadBtn').disabled = true;
+        $('videoProgress').classList.remove('hidden');
+        const setProgress = (ratio) => {
+          $('videoProgressBar').style.width = `${Math.round(ratio * 100)}%`;
+          setVideoStatus(ratio < 1 ? `Subiendo… ${Math.round(ratio * 100)} %` : 'Procesando…');
+        };
+        setProgress(0);
+        try {
+          const data = await uploadVideo(file, $('videoTitle').value.trim(), setProgress);
+          $('videoTitle').value = '';
+          $('videoFile').value = '';
+          renderVideos(data.videos);
+          setVideoStatus('Video publicado. Ya se ve en la página.', 'ok');
+        } catch (err) {
+          setVideoStatus(err.message, 'err');
+          if (err.expired) setTimeout(logout, 1500);
+        } finally {
+          uploading = false;
+          $('videoProgress').classList.add('hidden');
+          $('videoUploadBtn').disabled = videos.length >= MAX_VIDEOS;
+        }
       });
 
       form.addEventListener('submit', async (e) => {
@@ -403,7 +558,7 @@
       });
 
       window.addEventListener('beforeunload', (e) => {
-        if (!dirty) return;
+        if (!dirty && !uploading) return;
         e.preventDefault();
         e.returnValue = '';
       });

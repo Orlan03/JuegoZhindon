@@ -3,326 +3,274 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f8fafc">
-  <title>¡Gracias por participar! · Miguel Zhindón</title>
+  <meta name="theme-color" content="#0f172a">
+  <title>Miguel Zhindón · Con tu apoyo, Biblián avanzará</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
   <style>
-    :root {
-      --primary: #2563eb;
-      --on-primary: #ffffff;
-      --bg: #f8fafc;
-      --text: #0f172a;
-      --muted: color-mix(in srgb, var(--text) 68%, var(--bg));
-      --line: color-mix(in srgb, var(--text) 10%, transparent);
-      --surface: color-mix(in srgb, var(--text) 3%, var(--bg));
-      --tint: color-mix(in srgb, var(--primary) 14%, transparent);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .wrap { width: min(1120px, 100%); margin: 0 auto; padding: 0 20px; }
-
-    /* Barra superior */
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      border-bottom: 1px solid var(--line);
-      background: color-mix(in srgb, var(--bg) 85%, transparent);
-      backdrop-filter: blur(12px);
-    }
-
-    .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.01em; }
-
-    .brand-mark {
-      width: 32px;
-      height: 32px;
-      border-radius: 10px;
-      display: grid;
-      place-items: center;
-      background: var(--primary);
-      color: var(--on-primary);
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .brand small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1.2; }
-    .brand span:last-child { line-height: 1.25; }
-
-    .topbar-link {
-      padding: 8px 14px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--text);
-      font-size: 14px;
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .topbar-link:hover { background: var(--surface); }
-
-    /* Portada */
-    .hero {
-      position: relative;
-      overflow: hidden;
-      padding: clamp(64px, 11vw, 120px) 0 clamp(56px, 8vw, 88px);
-      text-align: center;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      inset: -40% -10% auto;
-      height: 140%;
-      background: radial-gradient(closest-side, var(--tint), transparent);
-      pointer-events: none;
-    }
-
-    .hero .wrap { position: relative; max-width: 780px; }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 999px;
-      background: var(--tint);
-      color: var(--primary);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .badge::before {
-      content: '';
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-
-    h1 {
-      margin: 22px 0 0;
-      font-size: clamp(34px, 6.2vw, 64px);
-      font-weight: 800;
-      line-height: 1.06;
-      letter-spacing: -0.035em;
-      text-wrap: balance;
-    }
-
-    .lead {
-      margin: 22px auto 0;
-      max-width: 620px;
-      color: var(--muted);
-      font-size: clamp(16px, 2vw, 19px);
-      white-space: pre-line;
-      text-wrap: pretty;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 36px;
-      padding: 15px 28px;
-      border-radius: 999px;
-      background: var(--primary);
-      color: var(--on-primary);
-      font-size: 16px;
-      font-weight: 700;
-      text-decoration: none;
-      box-shadow: 0 10px 30px color-mix(in srgb, var(--primary) 35%, transparent);
-      transition: transform 0.15s ease, box-shadow 0.2s ease;
-    }
-
-    .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px color-mix(in srgb, var(--primary) 45%, transparent); }
-    .btn svg { width: 18px; height: 18px; }
-
-    /* Secciones de videos */
-    .section { padding: clamp(40px, 6vw, 64px) 0; border-top: 1px solid var(--line); scroll-margin-top: 64px; }
-
-    .section-head { margin-bottom: 28px; }
-
-    .section-head h2 {
-      margin: 0;
-      font-size: clamp(22px, 3vw, 30px);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
-    .section-head p { margin: 6px 0 0; color: var(--muted); }
-
-    .eyebrow {
-      display: block;
-      margin-bottom: 6px;
-      color: var(--primary);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .youtube {
-      position: relative;
-      width: 100%;
-      max-width: 960px;
-      aspect-ratio: 16 / 9;
-      overflow: hidden;
-      border-radius: 20px;
-      background: #000;
-      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
-    }
-
-    .youtube.is-vertical { max-width: 380px; aspect-ratio: 9 / 16; }
-
-    .youtube iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-
-    .tiktok-grid {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: flex-start;
-      gap: 24px;
-    }
-
-    .tiktok-card {
-      flex: 0 1 344px;
-      min-width: 0;
-      padding: 8px;
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      background: var(--surface);
-    }
-
-    .tiktok-card .tiktok-embed {
-      max-width: 605px;
-      min-width: min(325px, 100%);
-      margin: 0 auto !important;
-      border-radius: 16px;
-      overflow: hidden;
-    }
-
-    .tiktok-card .tiktok-embed a { color: var(--primary); font-weight: 700; }
-
-    footer {
-      margin-top: auto;
-      padding: 28px 0;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 13px;
-      text-align: center;
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1); }
+    .reveal.is-visible { opacity: 1; transform: none; }
+    .tiktok-embed { max-width: 605px; min-width: min(325px, 100%); margin: 0 auto !important; border-radius: 16px; overflow: hidden; }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+      * { scroll-behavior: auto !important; }
     }
   </style>
 </head>
-<body>
-  <header class="topbar">
-    <div class="wrap">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">MZ</span>
-        <span>Miguel Zhindón<small>Biblián</small></span>
-      </div>
-      <a class="topbar-link" href="/">Jugar</a>
+<body class="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-800 antialiased selection:bg-sky-200">
+  <header class="sticky top-0 z-30 border-b border-white/10 bg-slate-900/85 backdrop-blur-lg">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 lg:px-8">
+      <a href="#inicio" class="flex items-center gap-3">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-sm font-black text-white shadow-lg shadow-sky-500/30">MZ</span>
+        <span class="leading-tight">
+          <span class="block font-bold tracking-tight text-white">Miguel Zhindón</span>
+          <span class="block text-xs font-medium text-slate-400">Biblián</span>
+        </span>
+      </a>
+      <nav class="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
+        <a href="#propuestas" class="transition hover:text-white">Propuestas</a>
+        <a href="#tiktok" class="transition hover:text-white">TikTok</a>
+        <a id="navVideos" href="#videos" class="transition hover:text-white" hidden>Videos</a>
+      </nav>
+      <a href="index.html" class="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition duration-300 hover:scale-105 hover:border-sky-400 hover:bg-white/5">Jugar</a>
     </div>
   </header>
 
-  <main>
-    <section class="hero">
-      <div class="wrap">
-        <span class="badge">Puntaje registrado</span>
-        <h1 id="title">¡Gracias por participar!</h1>
-        <p class="lead" id="thanks"></p>
-        <a class="btn" id="cta" href="/">
-          <span id="ctaText">Volver a jugar</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
+  <main class="flex-1">
+    <section id="inicio" class="relative overflow-hidden bg-slate-900 text-white">
+      <div class="pointer-events-none absolute -left-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-sky-500/20 blur-3xl"></div>
+      <div class="pointer-events-none absolute -bottom-48 right-0 h-[28rem] w-[28rem] rounded-full bg-red-500/15 blur-3xl"></div>
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)] [background-size:28px_28px]"></div>
+
+      <div class="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:py-28">
+        <div class="reveal">
+          <span class="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+            </span>
+            Gracias por jugar
+          </span>
+          <h1 class="mt-7 text-5xl font-black leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+            Con tu apoyo,
+            <span class="block bg-gradient-to-r from-sky-300 via-sky-400 to-blue-500 bg-clip-text text-transparent">Biblián avanzará</span>
+          </h1>
+          <p class="mt-7 max-w-xl text-lg leading-relaxed text-slate-300">
+            Miguel Zhindón conoce Biblián desde adentro: años de trabajo técnico en la empresa eléctrica, llevando luz y servicio a cada barrio y comunidad. Esa experiencia en el terreno es la base de un plan serio, con soluciones que funcionan.
+          </p>
+          <dl class="mt-10 grid max-w-lg grid-cols-3 gap-4">
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:border-sky-400/40">
+              <dt class="text-xs font-medium text-slate-400">Experiencia</dt>
+              <dd class="mt-1 text-sm font-bold text-white">Técnica</dd>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:border-sky-400/40">
+              <dt class="text-xs font-medium text-slate-400">Trabajo</dt>
+              <dd class="mt-1 text-sm font-bold text-white">En territorio</dd>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:border-sky-400/40">
+              <dt class="text-xs font-medium text-slate-400">Compromiso</dt>
+              <dd class="mt-1 text-sm font-bold text-white">Con Biblián</dd>
+            </div>
+          </dl>
+          <div class="mt-10 flex flex-wrap gap-4">
+            <a href="#propuestas" class="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg shadow-black/20 transition duration-300 hover:scale-105 hover:shadow-xl">
+              Ver propuestas
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+            <a href="#tiktok" class="inline-flex items-center gap-2 rounded-full border border-white/20 px-6 py-3 text-sm font-bold text-white transition duration-300 hover:scale-105 hover:bg-white/5">
+              Mira los videos
+            </a>
+          </div>
+        </div>
+
+        <div class="reveal relative mx-auto w-full max-w-md lg:max-w-none" style="transition-delay: 150ms">
+          <div class="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-sky-500/40 via-transparent to-red-500/30 blur-2xl"></div>
+          <div class="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-800 shadow-2xl ring-1 ring-white/10 transition duration-500 hover:scale-[1.02]">
+            <img src="assets/foto-oficial.jpg" alt="Miguel Zhindón, candidato por Biblián" class="h-full w-full object-cover"
+                 onerror="this.hidden = true; document.getElementById('photoFallback').hidden = false;">
+            <div id="photoFallback" hidden>
+              <div class="absolute inset-0 grid place-items-center bg-gradient-to-br from-slate-700 to-slate-900">
+                <span class="text-8xl font-black tracking-tight text-white/15">MZ</span>
+              </div>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent p-7">
+              <p class="text-2xl font-extrabold text-white">Miguel Zhindón</p>
+              <p class="mt-1 text-sm font-medium text-sky-200">Candidato por Biblián</p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="section" id="youtubeSection" hidden>
-      <div class="wrap">
-        <div class="section-head">
-          <span class="eyebrow">Video destacado</span>
-          <h2>Conoce nuestra propuesta</h2>
+    <section id="propuestas" class="scroll-mt-16 py-24 lg:py-32">
+      <div class="mx-auto max-w-7xl px-5 lg:px-8">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-red-600">Nuestras propuestas</span>
+          <h2 class="mt-3 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">Tres ejes para transformar Biblián</h2>
+          <p class="mt-4 text-lg text-slate-600">Soluciones concretas, pensadas desde la experiencia y el trabajo diario con la gente.</p>
         </div>
-        <div class="youtube" id="youtube"></div>
+
+        <div class="mt-16 grid gap-8 md:grid-cols-3">
+          <div class="reveal">
+          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-sky-50 p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-sky-500/10">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sky-200/50 blur-2xl transition duration-500 group-hover:bg-sky-300/60"></div>
+            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-lg shadow-sky-500/30">
+              <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
+            </div>
+            <h3 class="relative mt-7 text-2xl font-extrabold text-slate-900">Servicios Básicos</h3>
+            <p class="relative mt-3 leading-relaxed text-slate-600">Luz, agua potable y alcantarillado de calidad en cada barrio y comunidad, con mantenimiento oportuno y atención cercana.</p>
+          </article>
+          </div>
+
+          <div class="reveal" style="transition-delay: 100ms">
+          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-amber-50 p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-amber-500/10">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-200/50 blur-2xl transition duration-500 group-hover:bg-amber-300/60"></div>
+            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 text-white shadow-lg shadow-orange-500/30">
+              <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3L4 21M16 3l4 18"/><path d="M12 4v2M12 10v3M12 17v3"/></svg>
+            </div>
+            <h3 class="relative mt-7 text-2xl font-extrabold text-slate-900">Obras y Vialidad</h3>
+            <p class="relative mt-3 leading-relaxed text-slate-600">Vías urbanas y rurales en buen estado, obras que conectan a nuestras comunidades y un cantón que crece con orden.</p>
+          </article>
+          </div>
+
+          <div class="reveal" style="transition-delay: 200ms">
+          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-red-50 p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-red-500/10">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-red-200/50 blur-2xl transition duration-500 group-hover:bg-red-300/60"></div>
+            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-rose-500 to-red-700 text-white shadow-lg shadow-red-500/30">
+              <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <h3 class="relative mt-7 text-2xl font-extrabold text-slate-900">Seguridad Ciudadana</h3>
+            <p class="relative mt-3 leading-relaxed text-slate-600">Calles iluminadas, organización barrial y coordinación con las autoridades para que cada familia viva tranquila.</p>
+          </article>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="section" id="tiktokSection" hidden>
-      <div class="wrap">
-        <div class="section-head">
-          <span class="eyebrow">TikTok</span>
-          <h2>Síguenos en TikTok</h2>
-          <p>Mira, comparte y súmate a la campaña.</p>
+    <section id="tiktok" class="relative scroll-mt-16 overflow-hidden bg-slate-900 py-24 text-white lg:py-32">
+      <div class="pointer-events-none absolute left-1/2 top-0 h-[30rem] w-[60rem] -translate-x-1/2 rounded-full bg-sky-500/15 blur-3xl"></div>
+      <div class="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-red-500/15 blur-3xl"></div>
+      <div class="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"></div>
+
+      <div class="relative mx-auto max-w-7xl px-5 lg:px-8">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 backdrop-blur">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.6 5.8A4.3 4.3 0 0 1 15.5 3h-3.1v12.4a2.6 2.6 0 1 1-2.6-2.6c.3 0 .5 0 .8.1V9.7a5.7 5.7 0 1 0 4.9 5.7V9.1a7.4 7.4 0 0 0 4.3 1.4V7.4a4.3 4.3 0 0 1-3.2-1.6z"/></svg>
+            TikTok oficial
+          </span>
+          <h2 class="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
+            Sigue nuestra campaña en
+            <span class="bg-gradient-to-r from-cyan-300 via-sky-400 to-red-400 bg-clip-text text-transparent">TikTok</span>
+          </h2>
+          <p class="mt-4 text-lg text-slate-300">Recorridos, propuestas y el día a día de la campaña, contados de primera mano.</p>
         </div>
-        <div class="tiktok-grid" id="tiktoks"></div>
+
+        <div id="tiktoks" class="mx-auto mt-16 grid w-full gap-8"></div>
+
+        <div id="tiktokEmpty" class="reveal mx-auto mt-16 max-w-md rounded-3xl border border-white/15 bg-white/5 p-10 text-center backdrop-blur-xl" hidden>
+          <p class="text-lg font-bold text-white">Muy pronto, nuevos videos</p>
+          <p class="mt-2 text-slate-400">Síguenos en TikTok para no perderte ninguno.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="videos" class="scroll-mt-16 py-24 lg:py-32" hidden>
+      <div class="mx-auto max-w-7xl px-5 lg:px-8">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-red-600">Videos de la campaña</span>
+          <h2 class="mt-3 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">Escucha nuestro mensaje</h2>
+          <p class="mt-4 text-lg text-slate-600">Miguel Zhindón te cuenta, en primera persona, cómo vamos a sacar adelante a Biblián.</p>
+        </div>
+        <div id="videoGrid" class="mx-auto mt-16 grid w-full items-start gap-8"></div>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="wrap">© Miguel Zhindón · Biblián</div>
+  <footer class="relative overflow-hidden border-t border-white/10 bg-slate-950 text-white">
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent"></div>
+    <div class="mx-auto max-w-4xl px-5 py-20 text-center lg:px-8">
+      <h2 class="reveal text-3xl font-black tracking-tight sm:text-4xl">Súmate a la campaña</h2>
+      <p class="reveal mt-3 text-lg text-slate-400">Comparte, comenta y lleva el mensaje a tu barrio.</p>
+      <div class="reveal mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a id="tiktokProfile" href="https://www.tiktok.com/" target="_blank" rel="noopener"
+           class="group relative inline-flex w-full items-center justify-center gap-3 overflow-hidden rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-red-500 px-9 py-4 text-lg font-extrabold text-white shadow-xl shadow-sky-500/30 transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-red-500/30 sm:w-auto">
+          <span class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition duration-700 group-hover:translate-x-full"></span>
+          <svg class="relative h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.6 5.8A4.3 4.3 0 0 1 15.5 3h-3.1v12.4a2.6 2.6 0 1 1-2.6-2.6c.3 0 .5 0 .8.1V9.7a5.7 5.7 0 1 0 4.9 5.7V9.1a7.4 7.4 0 0 0 4.3 1.4V7.4a4.3 4.3 0 0 1-3.2-1.6z"/></svg>
+          <span class="relative">Síguenos en TikTok</span>
+        </a>
+        <a href="index.html"
+           class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 px-8 py-4 text-base font-semibold text-slate-200 transition duration-300 hover:scale-105 hover:border-white/60 hover:bg-white/5 hover:text-white sm:w-auto">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          Volver a jugar
+        </a>
+      </div>
+    </div>
+    <div class="border-t border-white/10 py-6 text-center text-sm text-slate-500">
+      © Miguel Zhindón · Biblián
+    </div>
   </footer>
 
   <script>
     'use strict';
+    // Perfil oficial de TikTok del candidato (botón "Síguenos en TikTok").
+    const TIKTOK_PROFILE_URL = 'https://www.tiktok.com/@REEMPLAZAR-CON-EL-USUARIO';
+    const MAX_TIKTOKS = 3;
+
+    document.getElementById('tiktokProfile').href = TIKTOK_PROFILE_URL;
+
+    const revealObserver = 'IntersectionObserver' in window
+      ? new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add('is-visible');
+          revealObserver.unobserve(entry.target);
+        }
+      }, { threshold: 0.12 })
+      : null;
+
+    function reveal(el) {
+      if (revealObserver) revealObserver.observe(el);
+      else el.classList.add('is-visible');
+    }
+
+    document.querySelectorAll('.reveal').forEach(reveal);
+
     (async () => {
-      const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
       const TIKTOK_ID = /^\d{8,25}$/;
       const TIKTOK_CITE = /^https:\/\/www\.tiktok\.com\//;
+      const VIDEO_FILE = /^[0-9a-f]{16}\.(?:mp4|webm)$/;
       const $ = (id) => document.getElementById(id);
+      // Clases completas escritas aquí para que Tailwind las genere.
+      const GRID_LAYOUT = {
+        1: 'max-w-sm',
+        2: 'max-w-3xl sm:grid-cols-2',
+        3: 'max-w-6xl sm:grid-cols-2 lg:grid-cols-3',
+      };
+      const VIDEO_LAYOUT = {
+        1: 'max-w-3xl',
+        2: 'max-w-5xl sm:grid-cols-2',
+        3: 'max-w-6xl sm:grid-cols-2 lg:grid-cols-3',
+      };
 
-      function readableText(hex) {
-        const n = parseInt(hex.slice(1), 16);
-        const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#0f172a' : '#ffffff';
-      }
-
-      function applyColors({ primaryColor, backgroundColor }) {
-        const root = document.documentElement.style;
-        if (primaryColor) {
-          root.setProperty('--primary', primaryColor);
-          root.setProperty('--on-primary', readableText(primaryColor));
-        }
-        if (backgroundColor) {
-          root.setProperty('--bg', backgroundColor);
-          root.setProperty('--text', readableText(backgroundColor));
-          document.querySelector('meta[name="theme-color"]').content = backgroundColor;
-        }
-      }
-
-      function renderYoutube(id, vertical) {
-        const box = $('youtube');
-        box.classList.toggle('is-vertical', vertical);
-        const iframe = document.createElement('iframe');
-        iframe.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
-        iframe.title = 'Video de YouTube';
-        iframe.loading = 'lazy';
-        iframe.allow = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-        iframe.allowFullscreen = true;
-        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-        box.appendChild(iframe);
-        $('youtubeSection').hidden = false;
-      }
-
-      function tiktokCard({ id, cite }) {
+      function tiktokCard({ id, cite }, index) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'reveal';
+        wrapper.style.transitionDelay = `${index * 120}ms`;
         const card = document.createElement('div');
-        card.className = 'tiktok-card';
+        card.className = 'rounded-3xl border border-white/15 bg-white/10 p-3 shadow-2xl shadow-black/30 ring-1 ring-white/5 backdrop-blur-xl transition duration-300 hover:scale-105 hover:border-sky-300/40 hover:shadow-sky-500/20';
         const quote = document.createElement('blockquote');
         quote.className = 'tiktok-embed';
         quote.cite = cite;
@@ -332,44 +280,77 @@
         link.href = cite;
         link.target = '_blank';
         link.rel = 'noopener';
+        link.className = 'font-semibold text-sky-300';
         link.textContent = 'Ver video en TikTok';
         section.appendChild(link);
         quote.appendChild(section);
         card.appendChild(quote);
-        return card;
+        wrapper.appendChild(card);
+        return wrapper;
+      }
+
+      function videoCard({ file, title }, index) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'reveal';
+        wrapper.style.transitionDelay = `${index * 120}ms`;
+        const card = document.createElement('figure');
+        card.className = 'overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-sky-500/10';
+        const video = document.createElement('video');
+        // "#t=0.1" hace que Safari en iPhone muestre el primer cuadro en vez de un recuadro negro.
+        video.src = `/uploads/videos/${file}#t=0.1`;
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.className = 'block max-h-[75vh] w-full bg-slate-950';
+        card.appendChild(video);
+        if (title) {
+          const caption = document.createElement('figcaption');
+          caption.className = 'px-5 py-4 font-bold text-slate-900';
+          caption.textContent = title;
+          card.appendChild(caption);
+        }
+        wrapper.appendChild(card);
+        return wrapper;
+      }
+
+      function fillGrid(grid, cards, layout) {
+        grid.className += ` ${layout[Math.min(cards.length, 3)]}`;
+        grid.replaceChildren(...cards);
+        cards.forEach(reveal);
       }
 
       function renderTiktoks(list) {
-        const valid = list.filter((t) => t && TIKTOK_ID.test(t.id || '') && TIKTOK_CITE.test(t.cite || ''));
-        if (!valid.length) return;
-        $('tiktoks').replaceChildren(...valid.map(tiktokCard));
-        $('tiktokSection').hidden = false;
+        const valid = list
+          .filter((t) => t && TIKTOK_ID.test(t.id || '') && TIKTOK_CITE.test(t.cite || ''))
+          .slice(0, MAX_TIKTOKS);
+        if (!valid.length) {
+          $('tiktokEmpty').hidden = false;
+          return;
+        }
+        fillGrid($('tiktoks'), valid.map(tiktokCard), GRID_LAYOUT);
         const script = document.createElement('script');
         script.src = 'https://www.tiktok.com/embed.js';
         script.async = true;
         document.body.appendChild(script);
       }
 
-      let config = {};
+      function renderVideos(list) {
+        const valid = list.filter((v) => v && VIDEO_FILE.test(v.file || ''));
+        if (!valid.length) return;
+        fillGrid($('videoGrid'), valid.map(videoCard), VIDEO_LAYOUT);
+        $('videos').hidden = false;
+        $('navVideos').hidden = false;
+      }
+
+      let media = {};
       try {
         const res = await fetch('/api/config', { cache: 'no-store' });
-        config = (await res.json()).config || {};
+        media = ((await res.json()).config || {}).media || {};
       } catch {
-        return;
+        /* sin servidor: se muestra el aviso de TikTok vacío */
       }
-
-      const texts = config.texts || {};
-      const media = config.media || {};
-      applyColors(config.colors || {});
-      if (texts.heroTitle) {
-        $('title').textContent = texts.heroTitle;
-        document.title = `${texts.heroTitle} · Miguel Zhindón`;
-      }
-      $('thanks').textContent = texts.heroText || '';
-      if (texts.ctaText) $('ctaText').textContent = texts.ctaText;
-
-      if (YOUTUBE_ID.test(media.youtubeId || '')) renderYoutube(media.youtubeId, media.youtubeVertical === true);
       renderTiktoks(Array.isArray(media.tiktoks) ? media.tiktoks : []);
+      renderVideos(Array.isArray(media.videos) ? media.videos : []);
     })();
   </script>
 </body>

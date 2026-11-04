@@ -26,25 +26,30 @@
     MAX_RISE: 560,
     MAX_FALL: 780,
 
-    BASE_SPEED: 310,
-    SPEED_STEP: 8,
-    MAX_SPEED: 680,
+    // Dificultad progresiva: arranca lento y sube con el tiempo vivo y los focos recogidos.
+    BASE_SPEED: 250,
+    MAX_SPEED: 560,
+    RAMP_SECONDS: 180, // segundos vivo que, por sí solos, llevan a la dificultad máxima
+    RAMP_LIGHTBULBS: 400, // focos que, por sí solos, llevan a la dificultad máxima
+    GAP_EASY: 1.9, // segundos entre obstáculos al empezar
+    GAP_HARD: 1.05, // segundos entre obstáculos en la dificultad máxima
     SPEED_LERP: 1.5,
     PX_PER_METER: 24,
 
     PHYSICS_STEP: 1 / 120,
     MAX_FRAME_DT: 1 / 20,
 
-    COIN_R: 13,
-    COIN_SPACING: 34,
+    LIGHTBULB_R: 13,
+    LIGHTBULB_SPACING: 34,
     ZAPPER_R: 10,
     NODE_R: 14,
 
     MAX_PARTICLES: 700,
     STORAGE_KEY: 'biblian-jetpack:record-kw',
     MUTE_KEY: 'biblian-jetpack:muted',
-    BOARD_KEY: 'biblian-jetpack:leaderboard',
-    PROFILE_KEY: 'biblian-jetpack:player-profile',
+    // Cambiar el sufijo al vaciar la tabla del servidor: cada aparato olvida su último puntaje guardado.
+    BOARD_KEY: 'biblian-jetpack:leaderboard:2',
+    PROFILE_KEY: 'biblian-jetpack:player-profile:2',
     BOARD_SIZE: 10,
   };
 
@@ -60,8 +65,11 @@
     privacyOwner: '[Nombre de la organización o persona responsable de la campaña]',
     privacyContact: '[correo o WhatsApp para pedir ver, corregir o borrar datos]',
     privacyUntil: '[fecha en que se borrarán los datos, p. ej. 30 días después de la elección]',
-    privacyVersion: '2026-10-22',
+    privacyVersion: '2026-11-03',
   };
+
+  // Deben coincidir con PARISHES en server.py.
+  const PARISHES = ['Centro Urbano', 'Nazón', 'San Francisco de Sageo', 'Turupamba', 'Jerusalén'];
 
   const ASSETS = {
     far: 'assets/bg_far.jpg',
@@ -74,6 +82,7 @@
     tunnel: 'assets/tunel.png',
     market: 'assets/mercado.png',
     iglesia: 'assets/iglesia.png',
+    lightbulb: 'assets/foco.png',
     fanBoy: 'assets/crowd/crowd_boy.png',
     fanGirl: 'assets/crowd/crowd_girl.png',
     fanMan: 'assets/crowd/crowd_man.png',
@@ -172,8 +181,8 @@
   const NR = CONFIG.NODE_R;
   const ZAP_MIN_Y = CONFIG.CEILING_Y + NR + 4;
   const ZAP_MAX_Y = CONFIG.GROUND_Y - NR - 2;
-  const COIN_MIN_Y = CONFIG.CEILING_Y + CONFIG.COIN_R + 8;
-  const COIN_MAX_Y = CONFIG.GROUND_Y - CONFIG.COIN_R - 8;
+  const LIGHTBULB_MIN_Y = CONFIG.CEILING_Y + CONFIG.LIGHTBULB_R + 8;
+  const LIGHTBULB_MAX_Y = CONFIG.GROUND_Y - CONFIG.LIGHTBULB_R - 8;
 
   const ZAPPER_COLORS = [
     { core: '#ff3b5c', light: '#ffb3c0', rgb: '255,59,92' },
@@ -242,8 +251,14 @@
   // =====================================================================
   const $ = (id) => document.getElementById(id);
   const canvas = $('gameCanvas');
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const mainCtx = canvas.getContext('2d', { alpha: false });
+  // Contexto de dibujo activo: apunta a fxCtx mientras se dibuja un grupo que se filtrará junto.
+  let ctx = mainCtx;
   const CAN_FILTER = typeof ctx.filter === 'string';
+  // Capa auxiliar del tamaño del lienzo para aplicar el filtro de "ciudad apagada" una sola vez
+  // por grupo: un drawImage con filtro por cada casa o persona es carísimo en móviles.
+  const fxCanvas = document.createElement('canvas');
+  const fxCtx = fxCanvas.getContext('2d');
 
   const dom = {
     root: $('game'),
@@ -269,12 +284,19 @@
     scoreForm: $('scoreForm'),
     scoreName: $('scoreName'),
     scorePhone: $('scorePhone'),
+    parishField: $('parishField'),
+    scoreParish: $('scoreParish'),
     consentPrize: $('consentPrize'),
-    consentCampaign: $('consentCampaign'),
     privacy: $('privacy'),
     scoreError: $('scoreError'),
     scoreNote: $('scoreNote'),
     saveScore: $('saveScoreButton'),
+    promo: $('promoVideo'),
+    promoPlayer: $('promoPlayer'),
+    promoUnmute: $('promoUnmute'),
+    promoActions: $('promoActions'),
+    promoMore: $('promoMore'),
+    promoReplay: $('promoReplay'),
   };
 
   // =====================================================================
@@ -306,78 +328,96 @@
     shockSprite = c;
   }
 
-  // Tamaño de la moneda en unidades de mundo (diámetro + borde).
-  const COIN_SIZE = CONFIG.COIN_R * 2 + 2;
-  const BOLT_SHAPE = [[0.14, -0.58], [-0.34, 0.08], [-0.03, 0.08], [-0.16, 0.58], [0.34, -0.1], [0.03, -0.1]];
+  // Lado del sprite del foco en unidades de mundo (incluye margen para el resplandor).
+  const LIGHTBULB_SIZE = Math.round(CONFIG.LIGHTBULB_R * 3.4);
 
-  // Moneda de energía HD: canto dorado, cara con relieve, símbolo grabado y brillo.
-  function makeCoinSprite(kind, size) {
+  // Foco encendido dibujado a mano: se usa mientras assets/foco.png no exista o no haya cargado.
+  // Las medidas están en una cuadrícula de 48 × 48 con el centro en (0, 0).
+  function drawLightbulbShape(g, size) {
+    const u = size / 48;
+    g.save();
+    g.translate(size / 2, size / 2 - u);
+    g.scale(u, u);
+
+    const glass = g.createRadialGradient(-3, -8, 1, 0, -5, 13);
+    glass.addColorStop(0, '#fffef0');
+    glass.addColorStop(0.35, '#fff27a');
+    glass.addColorStop(0.75, '#ffd60a');
+    glass.addColorStop(1, '#f5a300');
+    g.fillStyle = glass;
+    // shadowBlur no se escala con la transformación: va en píxeles reales.
+    g.shadowColor = 'rgba(255, 214, 60, 0.95)';
+    g.shadowBlur = 7 * u;
+    g.beginPath();
+    g.arc(0, -5, 11, Math.PI * 0.78, Math.PI * 0.22);
+    g.quadraticCurveTo(5.5, 4, 5.5, 9);
+    g.lineTo(-5.5, 9);
+    g.quadraticCurveTo(-5.5, 4, -8.47, 2);
+    g.fill();
+    g.shadowBlur = 0;
+
+    g.strokeStyle = '#ff8a00';
+    g.lineWidth = 1.3;
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(-3, 9);
+    g.lineTo(-3, -3);
+    g.lineTo(-1.5, -6);
+    g.lineTo(0, -3);
+    g.lineTo(1.5, -6);
+    g.lineTo(3, -3);
+    g.lineTo(3, 9);
+    g.stroke();
+
+    g.save();
+    g.rotate(-0.5);
+    g.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    g.beginPath();
+    g.ellipse(-1, -11, 2.2, 4, 0, 0, TAU);
+    g.fill();
+    g.restore();
+
+    const metal = g.createLinearGradient(-5.5, 0, 5.5, 0);
+    metal.addColorStop(0, '#5c6379');
+    metal.addColorStop(0.4, '#e2e6f0');
+    metal.addColorStop(0.7, '#8a91a8');
+    metal.addColorStop(1, '#3a3f52');
+    g.fillStyle = metal;
+    for (let i = 0; i < 3; i++) g.fillRect(-5.5, 9 + i * 2.2, 11, 1.8);
+    g.fillStyle = '#2a2d3a';
+    g.beginPath();
+    g.moveTo(-3.5, 15.6);
+    g.lineTo(3.5, 15.6);
+    g.lineTo(1.6, 18);
+    g.lineTo(-1.6, 18);
+    g.fill();
+    g.restore();
+  }
+
+  function makeLightbulbSprite(size) {
     const c = document.createElement('canvas');
     c.width = c.height = size;
     const g = c.getContext('2d');
-    const R = size / 2 - 1;
-    g.translate(size / 2, size / 2);
-
-    const disc = (r) => {
-      g.beginPath();
-      g.arc(0, 0, r, 0, TAU);
-    };
-
-    let grd = g.createLinearGradient(-R, -R, R, R);
-    grd.addColorStop(0, '#fff3a6');
-    grd.addColorStop(0.45, '#f6b51a');
-    grd.addColorStop(1, '#9a4600');
-    g.fillStyle = grd;
-    disc(R);
-    g.fill();
-
-    grd = g.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R * 0.82);
-    grd.addColorStop(0, '#fffbd6');
-    grd.addColorStop(0.45, '#ffd43f');
-    grd.addColorStop(1, '#e58c0b');
-    g.fillStyle = grd;
-    disc(R * 0.8);
-    g.fill();
-
-    g.strokeStyle = 'rgba(150, 70, 0, 0.45)';
-    g.lineWidth = Math.max(1, R * 0.06);
-    disc(R * 0.66);
-    g.stroke();
-
-    const symbol = (color, ox, oy) => {
-      g.fillStyle = color;
-      if (kind === 'bolt') {
-        g.beginPath();
-        BOLT_SHAPE.forEach(([x, y], i) => (i ? g.lineTo : g.moveTo).call(g, x * R + ox, y * R + oy));
-        g.closePath();
-        g.fill();
-      } else {
-        g.font = `${Math.round(R * 0.7)}px "Lilita One", "Arial Black", system-ui, sans-serif`;
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.fillText('kW', ox, oy + R * 0.05);
-      }
-    };
-    symbol('rgba(255, 246, 190, 0.9)', R * 0.05, R * 0.06);
-    symbol('#9a4700', 0, 0);
-
-    g.save();
-    g.rotate(-0.6);
-    g.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    g.beginPath();
-    g.ellipse(0, -R * 0.55, R * 0.3, R * 0.12, 0, 0, TAU);
-    g.fill();
-    g.restore();
+    const img = images.lightbulb;
+    if (ready(img)) {
+      const fit = (size * 0.78) / Math.max(img.naturalWidth, img.naturalHeight);
+      const w = img.naturalWidth * fit;
+      const h = img.naturalHeight * fit;
+      g.shadowColor = 'rgba(255, 214, 60, 0.9)';
+      g.shadowBlur = size * 0.12;
+      g.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+    } else {
+      drawLightbulbShape(g, size);
+    }
     return c;
   }
 
-  const coinSprites = { bolt: null, kw: null };
+  let lightbulbSprite = null;
 
-  function buildCoinSprites() {
-    const size = Math.max(16, Math.ceil(COIN_SIZE * view.scale * view.dpr));
-    coinSprites.bolt = makeCoinSprite('bolt', size);
-    coinSprites.kw = makeCoinSprite('kw', size);
+  function buildLightbulbSprite() {
+    lightbulbSprite = makeLightbulbSprite(Math.max(24, Math.ceil(LIGHTBULB_SIZE * view.scale * view.dpr)));
   }
+  images.lightbulb.addEventListener('load', buildLightbulbSprite);
 
   function makeGlowSprite(size, rgb, alpha) {
     const c = document.createElement('canvas');
@@ -391,7 +431,7 @@
     return c;
   }
 
-  const coinGlow = makeGlowSprite(64, '255, 214, 60', 0.35);
+  const lightbulbGlow = makeGlowSprite(64, '255, 214, 60', 0.45);
   const thrustGlow = makeGlowSprite(64, '255, 230, 120', 0.7);
   const collectGlow = makeGlowSprite(128, '255, 220, 90', 0.55);
 
@@ -408,6 +448,9 @@
   poleGrad.addColorStop(1, '#1d1830');
 
   for (const c of ZAPPER_COLORS) {
+    c.halo = `rgba(${c.rgb}, 0.25)`;
+    c.beamWide = `rgba(${c.rgb}, 0.16)`;
+    c.beamCore = `rgba(${c.rgb}, 0.32)`;
     c.orb = ctx.createRadialGradient(-3, -3, 0, 0, 0, 9);
     c.orb.addColorStop(0, '#ffffff');
     c.orb.addColorStop(0.35, c.light);
@@ -420,6 +463,8 @@
   const view = {
     cssW: 1, cssH: 1, dpr: 1,
     scale: 1,
+    // Transformación mundo → píxel físico del frame actual: x_px = x * k + tx (tx/ty incluyen el temblor).
+    k: 1, tx: 0, ty: 0,
     w: CONFIG.MIN_VIEW_W,
     offsetY: 0,
     top: 0, bottom: CONFIG.WORLD_H,
@@ -437,6 +482,8 @@
     record: loadRecord(),
     newRecord: false,
     speedLevel: 0,
+    aliveTime: 0,
+    scoreSaved: false, // evita registrar dos veces la misma partida
     nextSpawnX: 0,
     patternCount: 0,
     lastPattern: '',
@@ -446,8 +493,8 @@
     canRestart: false,
     light: 1, // nivel de iluminación de la ciudad mostrado (suavizado)
     lightStep: 0, // último 25 % alcanzado en la partida
-    coinCombo: 0,
-    lastCoinTime: -1,
+    lightbulbCombo: 0,
+    lastLightbulbTime: -1,
   };
 
   const player = {
@@ -474,23 +521,55 @@
     landTimer: 0,
     flip: 0, flipQueued: 0, // voltereta de celebración cada 100 m
   };
-  const trail = [];
-  const popups = [];
+  // Pools de entidades: las activas son items[0..count). Al retirar una se intercambia con la
+  // última activa y su objeto se reutiliza en el siguiente spawn, así la partida no genera basura
+  // para el recolector (que en móviles de gama baja provoca tirones).
+  function createPool(make, prewarm) {
+    const pool = { items: [], count: 0, make };
+    for (let i = 0; i < prewarm; i++) pool.items.push(make());
+    return pool;
+  }
+
+  function acquire(pool) {
+    if (pool.count === pool.items.length) pool.items.push(pool.make());
+    return pool.items[pool.count++];
+  }
+
+  function release(pool, i) {
+    const last = --pool.count;
+    const freed = pool.items[i];
+    pool.items[i] = pool.items[last];
+    pool.items[last] = freed;
+  }
+
+  const TRAIL_MAX = 6;
+  const POPUPS_MAX = 14;
+  const SMOKE_MAX = 40;
+  const trail = createPool(() => ({ x: 0, y: 0, frame: 0, rot: 0, life: 0, max: 0 }), TRAIL_MAX);
+  const popups = createPool(() => ({ x: 0, y: 0, life: 0 }), POPUPS_MAX);
 
   // Tren turístico que recorre la calle de vez en cuando (coordenadas de la capa de la calle).
   const train = { active: false, x: 0, prevMark: undefined, smokeAcc: 0 };
-  const smoke = [];
+  const smoke = createPool(() => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 0, r: 0 }), SMOKE_MAX);
 
-  const coins = [];
-  const zappers = [];
-  const particles = [];
+  const lightbulbs = createPool(() => ({ x: 0, y: 0, phase: 0 }), 160);
+  const zappers = createPool(() => ({
+    x: 0, y: 0, len: 0, angle: 0, spin: 0, color: null, ax: 0, ay: 0, bx: 0, by: 0,
+  }), 12);
+  const particles = createPool(() => ({
+    x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 0, size: 0, grow: 0,
+    color: '#fff', kind: 'dot', g: 0, drag: 0, add: true, bounce: false,
+  }), CONFIG.MAX_PARTICLES);
 
   function meters() {
     if (game.state === 'dying' || game.state === 'gameover') return game.deathMeters;
     return game.runDistance / CONFIG.PX_PER_METER;
   }
 
-  const difficulty = () => clamp(meters() / 4200, 0, 1);
+  // 0 al empezar y 1 en la dificultad máxima; el tiempo vivo y los focos suman por separado.
+  const difficulty = () => clamp(
+    game.aliveTime / CONFIG.RAMP_SECONDS + game.energy / CONFIG.RAMP_LIGHTBULBS, 0, 1,
+  );
 
   // =====================================================================
   // PERSISTENCIA
@@ -565,14 +644,14 @@
     }
   }
 
+  // Se guardan todas las partidas; el Top muestra solo la mejor de cada WhatsApp.
   function topScores(rows = loadLeaderboard()) {
-    return rows.slice().sort((a, b) => b.score - a.score || a.at - b.at).slice(0, CONFIG.BOARD_SIZE);
-  }
-
-  function canSubmitScore(score) {
-    const profile = loadProfile();
-    if (!profile) return true;
-    return score > (profile.lastSavedScore || 0);
+    const best = new Map();
+    for (const row of rows) {
+      const current = best.get(row.whatsapp);
+      if (!current || row.score > current.score) best.set(row.whatsapp, row);
+    }
+    return [...best.values()].sort((a, b) => b.score - a.score || a.at - b.at).slice(0, CONFIG.BOARD_SIZE);
   }
 
   function boardError(message, code) {
@@ -613,13 +692,15 @@
     return board.rows;
   }
 
-  async function saveHighScore(nombre, whatsapp, score, consent = {}) {
+  async function saveHighScore(nombre, whatsapp, score, consent = {}, place = {}) {
     const name = String(nombre || '').trim().replace(/\s+/g, ' ');
     const phone = digitsOnly(whatsapp);
     if (letterCount(name) < 3) throw boardError('Escribe tu nombre y apellido (mínimo 3 letras).', 'name');
     if (!/^\d{10}$/.test(phone)) throw boardError('El WhatsApp debe tener 10 dígitos.', 'phone');
+    if (typeof place.esBiblian !== 'boolean') throw boardError('Indica si vives en el cantón Biblián.', 'biblian');
+    if (place.esBiblian && !PARISHES.includes(place.parroquia)) throw boardError('Elige tu parroquia.', 'parish');
     if (!consent.prize) throw boardError('Debes aceptar el aviso de privacidad para participar.', 'consent');
-    if (!canSubmitScore(score)) throw boardError('Solo puedes actualizar el Top si superas tu récord guardado.', 'record');
+    if (game.scoreSaved) throw boardError('El puntaje de esta partida ya quedó registrado.', 'saved');
 
     let res = null;
     try {
@@ -628,8 +709,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, whatsapp: phone, score,
+          es_biblian: place.esBiblian,
+          // Quien no vive en Biblián no envía parroquia: el campo se omite del todo.
+          ...(place.esBiblian ? { parroquia: place.parroquia } : {}),
           consentPrize: true,
-          consentCampaign: !!consent.campaign,
           privacyVersion: CAMPAIGN.privacyVersion,
         }),
       });
@@ -637,29 +720,21 @@
       res = null;
     }
 
-    if (res && (res.ok || res.status === 409 || res.status === 400)) {
+    if (res && (res.ok || res.status === 400)) {
       board.online = true;
-      if (res.data.top) board.rows = res.data.top;
-      if (res.data.token) {
-        const prev = loadProfile() || {};
-        persistProfile({
-          name, whatsapp: phone, token: res.data.token,
-          lastSavedScore: res.ok ? score : Math.max(prev.lastSavedScore || 0, score),
-        });
-      }
       if (!res.ok) throw boardError(res.data.error || 'No se pudo guardar el puntaje.', 'server');
+      if (res.data.top) board.rows = res.data.top;
+      persistProfile({ name, whatsapp: phone, token: res.data.token });
+      game.scoreSaved = true;
       return { rows: board.rows, shared: true };
     }
 
     // Sin servidor: se guarda solo en este aparato.
     const rows = loadLeaderboard();
-    const now = Date.now();
-    const i = rows.findIndex((r) => r.whatsapp === phone);
-    if (i >= 0 && score <= rows[i].score) throw boardError('Ese WhatsApp ya tiene un puntaje igual o mayor.', 'record');
-    if (i >= 0) rows[i] = { name, whatsapp: phone, score, at: now };
-    else rows.push({ name, whatsapp: phone, score, at: now });
+    rows.push({ name, whatsapp: phone, score, at: Date.now() });
     persistLeaderboard(rows);
-    persistProfile({ name, whatsapp: phone, lastSavedScore: score });
+    persistProfile({ name, whatsapp: phone });
+    game.scoreSaved = true;
     board.rows = topScores(rows);
     board.online = false;
     return { rows: board.rows, shared: false };
@@ -694,10 +769,10 @@
       if (!dom.scoreName.value) dom.scoreName.value = profile.name || '';
       if (!dom.scorePhone.value) dom.scorePhone.value = profile.whatsapp || '';
     }
-    const ok = canSubmitScore(game.energy);
+    const ok = !game.scoreSaved;
     dom.scoreForm.hidden = !ok;
     dom.scoreNote.hidden = ok;
-    dom.scoreNote.textContent = ok ? '' : 'Ya registraste este puntaje. Supera tu récord para volver a participar.';
+    dom.scoreNote.textContent = ok ? '' : 'El puntaje de esta partida ya quedó registrado. ¡Juega otra vez para volver a participar!';
     setScoreError('');
   }
 
@@ -856,7 +931,7 @@
         musicBus.gain.setTargetAtTime(music, t, 0.3);
       },
 
-      coin(combo) {
+      lightbulb(combo) {
         if (!ready()) return;
         const f = midi(81 + Math.min(combo, 12));
         tone({ type: 'triangle', f0: f, dur: 0.08, vol: 0.2 });
@@ -901,7 +976,7 @@
   const input = { keys: new Set(), mouse: false, touches: 0 };
   const THRUST_KEYS = new Set(['Space', 'ArrowUp', 'KeyW']);
   const isHolding = () => input.keys.size > 0 || input.mouse || input.touches > 0;
-  const isUiTarget = (t) => t instanceof Element && !!t.closest('button, a, input, textarea, select, label, form');
+  const isUiTarget = (t) => t instanceof Element && !!t.closest('button, a, input, textarea, select, label, form, .promo');
 
   function releaseInput() {
     input.keys.clear();
@@ -928,7 +1003,7 @@
   }
 
   window.addEventListener('keydown', (e) => {
-    if (isUiTarget(e.target)) return;
+    if (isUiTarget(e.target) || !dom.promo.hidden) return;
     if (THRUST_KEYS.has(e.code)) {
       e.preventDefault();
       if (game.state === 'gameover') {
@@ -991,7 +1066,7 @@
       releaseInput();
       saveRecord();
       sound.suspend();
-    } else {
+    } else if (dom.promo.hidden) {
       sound.resume();
     }
   });
@@ -1022,10 +1097,17 @@
     sound.click();
     dom.saveScore.disabled = true;
     try {
+      const answer = dom.scoreForm.elements.es_biblian.value;
       const { shared } = await saveHighScore(dom.scoreName.value, dom.scorePhone.value, game.energy, {
         prize: dom.consentPrize.checked,
-        campaign: dom.consentCampaign.checked,
+      }, {
+        esBiblian: answer === 'si' ? true : answer === 'no' ? false : null,
+        parroquia: dom.scoreParish.value,
       });
+      if (shared) {
+        showPromoVideo();
+        return;
+      }
       refreshScoreForm();
       showToast(shared ? '¡PUNTAJE GUARDADO! YA COMPITES POR EL PREMIO' : 'SIN CONEXIÓN · GUARDADO SOLO EN ESTE APARATO');
     } catch (err) {
@@ -1035,6 +1117,78 @@
       renderLeaderboard();
     }
   });
+
+  // La parroquia solo se pregunta a quien vive en Biblián; con "No" se oculta y se vacía.
+  dom.scoreForm.addEventListener('change', (e) => {
+    if (e.target.name !== 'es_biblian') return;
+    const livesInBiblian = e.target.value === 'si';
+    dom.parishField.hidden = !livesInBiblian;
+    dom.scoreParish.required = livesInBiblian;
+    if (!livesInBiblian) dom.scoreParish.value = '';
+  });
+
+  // Video obligatorio tras registrar el puntaje; al terminar aparecen las dos opciones.
+  // Si no hay video, falla o no arranca a tiempo, se va directo a la página para no dejar al jugador atrapado.
+  const PROMO_START_TIMEOUT_MS = 8000;
+  const PROMO_FILE_RE = /^[0-9a-f]{16}\.(?:mp4|webm)$/;
+  let promoTimer = 0;
+
+  function goToLanding() {
+    clearTimeout(promoTimer);
+    window.location.href = 'landing.html';
+  }
+
+  function showPromoActions() {
+    dom.promoUnmute.hidden = true;
+    dom.promoActions.hidden = false;
+    dom.promoMore.focus();
+  }
+
+  function showPromoVideo() {
+    const video = dom.promoPlayer;
+    releaseInput();
+    sound.suspend();
+    dom.promoUnmute.hidden = true;
+    dom.promoActions.hidden = true;
+    dom.promo.hidden = false;
+    video.muted = false;
+    video.currentTime = 0;
+    promoTimer = setTimeout(() => {
+      if (video.paused || video.currentTime === 0) goToLanding();
+    }, PROMO_START_TIMEOUT_MS);
+    video.play().catch(() => {
+      // Sin un toque reciente (sobre todo en iPhone) el navegador solo permite reproducir sin sonido.
+      video.muted = true;
+      dom.promoUnmute.hidden = false;
+      return video.play();
+    }).catch(goToLanding);
+  }
+
+  dom.promoPlayer.addEventListener('playing', () => clearTimeout(promoTimer));
+  dom.promoPlayer.addEventListener('ended', showPromoActions);
+  dom.promoPlayer.addEventListener('error', goToLanding);
+
+  dom.promoUnmute.addEventListener('click', () => {
+    dom.promoPlayer.muted = false;
+    dom.promoUnmute.hidden = true;
+  });
+
+  dom.promoMore.addEventListener('click', goToLanding);
+
+  dom.promoReplay.addEventListener('click', () => {
+    dom.promoPlayer.pause();
+    dom.promo.hidden = true;
+    sound.resume();
+    startGame();
+  });
+
+  // El video se elige en el panel: el primero de «Videos propios». Si no hay, queda assets/video-registro.mp4.
+  api('api/config')
+    .then((res) => {
+      const first = res.ok && res.data.config && (res.data.config.media.videos || [])[0];
+      if (first && PROMO_FILE_RE.test(first.file)) dom.promoPlayer.src = `uploads/videos/${first.file}`;
+    })
+    .catch(() => { /* sin servidor: se usa el archivo por defecto */ });
 
   document.querySelectorAll('[data-privacy-owner]').forEach((el) => { el.textContent = CAMPAIGN.privacyOwner; });
   document.querySelectorAll('[data-privacy-contact]').forEach((el) => { el.textContent = CAMPAIGN.privacyContact; });
@@ -1064,19 +1218,23 @@
 
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
+    fxCanvas.width = canvas.width;
+    fxCanvas.height = canvas.height;
 
     view.cssW = cssW;
     view.cssH = cssH;
     view.dpr = dpr;
     // En vertical el ancho manda: se garantiza un campo visual horizontal mínimo.
     view.scale = Math.min(cssH / CONFIG.WORLD_H, cssW / CONFIG.MIN_VIEW_W);
+    view.k = view.scale * dpr;
     view.w = cssW / view.scale;
     view.offsetY = (cssH - CONFIG.WORLD_H * view.scale) * 0.5;
     view.top = -view.offsetY / view.scale;
     view.bottom = CONFIG.WORLD_H + view.offsetY / view.scale;
 
     player.x = clamp(view.w * 0.22, 120, 240);
-    buildCoinSprites();
+    buildLightbulbSprite();
+    warmLayers();
 
     const W = canvas.width, H = canvas.height;
     vignetteGrad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.4, W / 2, H / 2, Math.hypot(W, H) * 0.6);
@@ -1117,20 +1275,22 @@
     anim.glow = 0;
     anim.landTimer = 0;
     anim.flip = anim.flipQueued = 0;
-    trail.length = 0;
-    popups.length = 0;
+    trail.count = 0;
+    popups.count = 0;
   }
 
   function startGame() {
-    coins.length = 0;
-    zappers.length = 0;
-    particles.length = 0;
+    lightbulbs.count = 0;
+    zappers.count = 0;
+    particles.count = 0;
 
     game.runDistance = 0;
     game.deathMeters = 0;
     game.energy = 0;
     game.newRecord = false;
     game.speedLevel = 0;
+    game.aliveTime = 0;
+    game.scoreSaved = false;
     game.targetSpeed = CONFIG.BASE_SPEED;
     game.patternCount = 0;
     game.lastPattern = '';
@@ -1140,15 +1300,15 @@
     game.flash = 0;
     game.canRestart = false;
     game.lightStep = 0;
-    game.coinCombo = 0;
-    game.lastCoinTime = -1;
+    game.lightbulbCombo = 0;
+    game.lastLightbulbTime = -1;
     shareCard = null;
 
     resetPlayer();
     game.state = 'playing';
     setScreen(dom.startScreen, false);
     setScreen(dom.overScreen, false);
-    showToast('¡RECARGA BIBLIÁN! · RECOLECTA ENERGÍA');
+    showToast('¡RECARGA BIBLIÁN! · RECOGE LOS FOCOS');
   }
 
   const lightTarget = () => Math.min(1, game.energy / CAMPAIGN.lightGoalKw);
@@ -1225,7 +1385,7 @@
   }
 
   // =====================================================================
-  // GENERACIÓN PROCEDURAL DE OBSTÁCULOS Y MONEDAS
+  // GENERACIÓN PROCEDURAL DE OBSTÁCULOS Y FOCOS
   // =====================================================================
   function updateZapperEnds(z) {
     const hx = (Math.cos(z.angle) * z.len) / 2;
@@ -1237,9 +1397,14 @@
   }
 
   function addZapper(cx, cy, len, angle, spin = 0) {
-    const z = { x: cx, y: cy, len, angle, spin, color: pick(ZAPPER_COLORS), ax: 0, ay: 0, bx: 0, by: 0 };
+    const z = acquire(zappers);
+    z.x = cx;
+    z.y = cy;
+    z.len = len;
+    z.angle = angle;
+    z.spin = spin;
+    z.color = pick(ZAPPER_COLORS);
     updateZapperEnds(z);
-    zappers.push(z);
     return z;
   }
 
@@ -1301,9 +1466,10 @@
     },
   };
 
-  function isCoinSafe(x, y) {
-    const R = CONFIG.COIN_R;
-    for (const z of zappers) {
+  function isLightbulbSafe(x, y) {
+    const R = CONFIG.LIGHTBULB_R;
+    for (let i = 0; i < zappers.count; i++) {
+      const z = zappers.items[i];
       if (Math.abs(z.x - x) > z.len / 2 + 80) continue;
       if (z.spin) {
         if (Math.hypot(x - z.x, y - z.y) < z.len / 2 + NR + R + 12) return false;
@@ -1314,77 +1480,92 @@
     return true;
   }
 
-  function addCoin(x, y, index) {
-    coins.push({ x, y, phase: rand(0, TAU), kind: index % 3 === 2 ? 'kw' : 'bolt' });
+  function addLightbulb(x, y) {
+    const b = acquire(lightbulbs);
+    b.x = x;
+    b.y = y;
+    b.phase = rand(0, TAU);
   }
 
-  function spawnCoins(x) {
-    const S = CONFIG.COIN_SPACING;
-    const type = pick(['line', 'wave', 'wave', 'block', 'arc', 'zigzag']);
-    const pts = [];
+  const LIGHTBULB_PATTERNS = ['line', 'wave', 'wave', 'block', 'arc', 'zigzag'];
+  // Búfer reutilizable con los puntos del patrón (el mayor, 'block', usa 4 × 9 = 36).
+  const lightbulbPts = { x: new Float64Array(64), y: new Float64Array(64), n: 0 };
+
+  function addPt(px, py) {
+    lightbulbPts.x[lightbulbPts.n] = px;
+    lightbulbPts.y[lightbulbPts.n] = py;
+    lightbulbPts.n++;
+  }
+
+  function spawnLightbulbs(x) {
+    const S = CONFIG.LIGHTBULB_SPACING;
+    const type = pick(LIGHTBULB_PATTERNS);
+    lightbulbPts.n = 0;
 
     switch (type) {
       case 'line': {
         const n = randInt(8, 14);
-        const y = rand(COIN_MIN_Y, COIN_MAX_Y);
-        for (let i = 0; i < n; i++) pts.push([i * S, y]);
+        const y = rand(LIGHTBULB_MIN_Y, LIGHTBULB_MAX_Y);
+        for (let i = 0; i < n; i++) addPt(i * S, y);
         break;
       }
       case 'wave': {
         const n = randInt(14, 22);
         const amp = rand(45, 90);
-        const y0 = rand(COIN_MIN_Y + amp, COIN_MAX_Y - amp);
+        const y0 = rand(LIGHTBULB_MIN_Y + amp, LIGHTBULB_MAX_Y - amp);
         const f = rand(0.35, 0.55);
-        for (let i = 0; i < n; i++) pts.push([i * S * 0.85, y0 + Math.sin(i * f) * amp]);
+        for (let i = 0; i < n; i++) addPt(i * S * 0.85, y0 + Math.sin(i * f) * amp);
         break;
       }
       case 'block': {
         const rows = randInt(2, 4);
         const cols = randInt(5, 9);
-        const y0 = rand(COIN_MIN_Y, COIN_MAX_Y - (rows - 1) * S);
+        const y0 = rand(LIGHTBULB_MIN_Y, LIGHTBULB_MAX_Y - (rows - 1) * S);
         for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) pts.push([c * S, y0 + r * S]);
+          for (let c = 0; c < cols; c++) addPt(c * S, y0 + r * S);
         }
         break;
       }
       case 'arc': {
         const n = randInt(10, 14);
         const h = rand(70, 130);
-        const yb = rand(COIN_MIN_Y + h, COIN_MAX_Y);
-        for (let i = 0; i < n; i++) pts.push([i * S, yb - Math.sin((i / (n - 1)) * Math.PI) * h]);
+        const yb = rand(LIGHTBULB_MIN_Y + h, LIGHTBULB_MAX_Y);
+        for (let i = 0; i < n; i++) addPt(i * S, yb - Math.sin((i / (n - 1)) * Math.PI) * h);
         break;
       }
       default: {
         const n = 18;
         const amp = rand(50, 80);
-        const y0 = rand(COIN_MIN_Y + amp, COIN_MAX_Y - amp);
+        const y0 = rand(LIGHTBULB_MIN_Y + amp, LIGHTBULB_MAX_Y - amp);
         for (let i = 0; i < n; i++) {
           const t = (i % 8) / 8;
           const tri = t < 0.5 ? t * 4 - 1 : 3 - t * 4;
-          pts.push([i * S * 0.8, y0 + tri * amp]);
+          addPt(i * S * 0.8, y0 + tri * amp);
         }
       }
     }
 
     let maxX = 0;
-    pts.forEach(([px, py], i) => {
-      const cx = x + CONFIG.COIN_R + px;
+    for (let i = 0; i < lightbulbPts.n; i++) {
+      const px = lightbulbPts.x[i];
+      const py = lightbulbPts.y[i];
+      const cx = x + CONFIG.LIGHTBULB_R + px;
       maxX = Math.max(maxX, px);
-      if (isCoinSafe(cx, py)) addCoin(cx, py, i);
-    });
-    return maxX + CONFIG.COIN_R * 2;
+      if (isLightbulbSafe(cx, py)) addLightbulb(cx, py);
+    }
+    return maxX + CONFIG.LIGHTBULB_R * 2;
   }
 
-  // Línea de monedas que atraviesa un obstáculo por un hueco seguro (guía al jugador).
-  function spawnCoinLineSafe(x0, width) {
-    const S = CONFIG.COIN_SPACING;
+  // Línea de focos que atraviesa un obstáculo por un hueco seguro (guía al jugador).
+  function spawnLightbulbLineSafe(x0, width) {
+    const S = CONFIG.LIGHTBULB_SPACING;
     const n = Math.max(3, Math.floor(width / S));
     for (let attempt = 0; attempt < 10; attempt++) {
-      const y = rand(COIN_MIN_Y, COIN_MAX_Y);
+      const y = rand(LIGHTBULB_MIN_Y, LIGHTBULB_MAX_Y);
       let ok = true;
-      for (let i = 0; i < n && ok; i++) ok = isCoinSafe(x0 + i * S, y);
+      for (let i = 0; i < n && ok; i++) ok = isLightbulbSafe(x0 + i * S, y);
       if (ok) {
-        for (let i = 0; i < n; i++) addCoin(x0 + i * S, y, i);
+        for (let i = 0; i < n; i++) addLightbulb(x0 + i * S, y);
         return;
       }
     }
@@ -1396,10 +1577,10 @@
     let width;
     let gapTime;
 
-    const coinTurn = game.patternCount === 0 || (game.lastPattern !== 'coins' && Math.random() < 0.52);
-    if (coinTurn) {
-      width = spawnCoins(x);
-      game.lastPattern = 'coins';
+    const lightbulbTurn = game.patternCount === 0 || (game.lastPattern !== 'lightbulbs' && Math.random() < 0.52);
+    if (lightbulbTurn) {
+      width = spawnLightbulbs(x);
+      game.lastPattern = 'lightbulbs';
       gapTime = rand(0.45, 0.8);
     } else {
       const r = Math.random();
@@ -1411,10 +1592,10 @@
 
       width = ZAPPER_PATTERNS[kind](x, d);
       if ((kind === 'single' || kind === 'gate') && Math.random() < 0.45) {
-        spawnCoinLineSafe(x - 60, width + 120);
+        spawnLightbulbLineSafe(x - 60, width + 120);
       }
       game.lastPattern = kind;
-      gapTime = lerp(1.65, 1.12, d) * rand(0.92, 1.22);
+      gapTime = lerp(CONFIG.GAP_EASY, CONFIG.GAP_HARD, d) * rand(0.92, 1.22);
     }
 
     game.patternCount++;
@@ -1424,79 +1605,99 @@
   // =====================================================================
   // PARTÍCULAS
   // =====================================================================
-  function emit(o) {
-    if (particles.length >= CONFIG.MAX_PARTICLES) return;
-    particles.push({
-      x: o.x, y: o.y,
-      vx: o.vx || 0, vy: o.vy || 0,
-      life: o.life, max: o.life,
-      size: o.size || 2, grow: o.grow || 0,
-      color: o.color || '#fff',
-      kind: o.kind || 'dot',
-      g: o.g || 0, drag: o.drag || 0,
-      add: o.add !== false,
-      bounce: !!o.bounce,
-    });
+  // Recicla una partícula del pool con valores por defecto; devuelve null si se alcanzó el tope.
+  // Cada emisor ajusta luego solo los campos que necesita (sin objetos de opciones temporales).
+  function emit(x, y, life, kind, color) {
+    if (particles.count >= CONFIG.MAX_PARTICLES) return null;
+    const p = acquire(particles);
+    p.x = x;
+    p.y = y;
+    p.vx = 0;
+    p.vy = 0;
+    p.life = life;
+    p.max = life;
+    p.size = 2;
+    p.grow = 0;
+    p.color = color;
+    p.kind = kind;
+    p.g = 0;
+    p.drag = 0;
+    p.add = true;
+    p.bounce = false;
+    return p;
   }
+
+  const nozzle = { x: 0, y: 0 };
 
   function nozzlePos() {
     const c = Math.cos(player.tilt);
     const s = Math.sin(player.tilt);
-    return {
-      x: player.x + NOZZLE.x * c - NOZZLE.y * s,
-      y: player.y + NOZZLE.x * s + NOZZLE.y * c,
-    };
+    nozzle.x = player.x + NOZZLE.x * c - NOZZLE.y * s;
+    nozzle.y = player.y + NOZZLE.x * s + NOZZLE.y * c;
+    return nozzle;
   }
+
+  const LIGHTBULB_BURST_COLORS = ['#fff7ae', '#ffd60a', '#ffe66d'];
+  const FIREWORK_COLORS = ['#fff7ae', '#ffd60a', '#ffe66d', '#ffffff', '#7df9ff'];
 
   function emitThrustSpark() {
     const n = nozzlePos();
     const a = Math.PI / 2 + 0.35 + rand(-0.55, 0.55);
     const s = rand(240, 520);
-    emit({
-      x: n.x + rand(-3, 3), y: n.y,
-      vx: Math.cos(a) * s - game.speed * 0.3,
-      vy: Math.sin(a) * s + Math.max(0, player.vy) * 0.5,
-      life: rand(0.25, 0.55),
-      size: rand(2, 3),
-      color: pick(THRUST_COLORS),
-      kind: Math.random() < 0.3 ? 'star' : 'streak',
-      g: 600, drag: 2.2, bounce: true,
-    });
+    const p = emit(n.x + rand(-3, 3), n.y, rand(0.25, 0.55), Math.random() < 0.3 ? 'star' : 'streak', pick(THRUST_COLORS));
+    if (!p) return;
+    p.vx = Math.cos(a) * s - game.speed * 0.3;
+    p.vy = Math.sin(a) * s + Math.max(0, player.vy) * 0.5;
+    p.size = rand(2, 3);
+    p.g = 600;
+    p.drag = 2.2;
+    p.bounce = true;
   }
 
   function emitDust(count, spread) {
     for (let i = 0; i < count; i++) {
-      emit({
-        x: player.x + rand(-spread, spread), y: ROAD_Y - 2,
-        vx: rand(-120, 60) - game.speed * 0.5, vy: rand(-90, -20),
-        life: rand(0.3, 0.55), size: rand(3, 6),
-        color: '#c9c2dd', kind: 'smoke', add: false, drag: 3,
-      });
+      const p = emit(player.x + rand(-spread, spread), ROAD_Y - 2, rand(0.3, 0.55), 'smoke', '#c9c2dd');
+      if (!p) return;
+      p.vx = rand(-120, 60) - game.speed * 0.5;
+      p.vy = rand(-90, -20);
+      p.size = rand(3, 6);
+      p.add = false;
+      p.drag = 3;
     }
   }
 
   function emitZapperSpark(z) {
     const t = Math.random();
-    emit({
-      x: lerp(z.ax, z.bx, t), y: lerp(z.ay, z.by, t),
-      vx: rand(-160, 160), vy: rand(-200, 60),
-      life: rand(0.15, 0.35), size: 2,
-      color: Math.random() < 0.5 ? z.color.light : '#fff7a8',
-      kind: 'streak', g: 400, drag: 3,
-    });
+    const color = Math.random() < 0.5 ? z.color.light : '#fff7a8';
+    const p = emit(lerp(z.ax, z.bx, t), lerp(z.ay, z.by, t), rand(0.15, 0.35), 'streak', color);
+    if (!p) return;
+    p.vx = rand(-160, 160);
+    p.vy = rand(-200, 60);
+    p.g = 400;
+    p.drag = 3;
   }
 
-  function burstCoin(x, y) {
+  function emitRing(x, y, life, size, grow, color) {
+    const p = emit(x, y, life, 'ring', color);
+    if (!p) return null;
+    p.size = size;
+    p.grow = grow;
+    return p;
+  }
+
+  function burstLightbulb(x, y) {
     for (let i = 0; i < 8; i++) {
       const a = rand(0, TAU);
       const s = rand(80, 220);
-      emit({
-        x, y, vx: Math.cos(a) * s - game.speed * 0.3, vy: Math.sin(a) * s,
-        life: 0.35, size: rand(2, 3),
-        color: pick(['#fff7ae', '#ffd60a', '#ffe66d']), kind: 'dot', drag: 4,
-      });
+      const p = emit(x, y, 0.35, 'dot', pick(LIGHTBULB_BURST_COLORS));
+      if (!p) break;
+      p.vx = Math.cos(a) * s - game.speed * 0.3;
+      p.vy = Math.sin(a) * s;
+      p.size = rand(2, 3);
+      p.drag = 4;
     }
-    emit({ x, y, vx: -game.speed * 0.2, life: 0.3, size: 8, grow: 20, color: '#ffe66d', kind: 'ring' });
+    const ring = emitRing(x, y, 0.3, 8, 20, '#ffe66d');
+    if (ring) ring.vx = -game.speed * 0.2;
   }
 
   // Fuegos artificiales dorados sobre la ciudad al iluminarla por completo.
@@ -1508,14 +1709,15 @@
       for (let i = 0; i < 22; i++) {
         const a = (i / 22) * TAU;
         const s = rand(140, 260);
-        emit({
-          x: cx, y: cy, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
-          life: rand(0.7, 1.1), size: rand(2, 3.2),
-          color: pick(['#fff7ae', '#ffd60a', '#ffe66d', '#ffffff', '#7df9ff']),
-          kind: i % 3 === 0 ? 'star' : 'dot', g: 160, drag: 1.6,
-        });
+        const p = emit(cx, cy, rand(0.7, 1.1), i % 3 === 0 ? 'star' : 'dot', pick(FIREWORK_COLORS));
+        if (!p) break;
+        p.vx = Math.cos(a) * s;
+        p.vy = Math.sin(a) * s;
+        p.size = rand(2, 3.2);
+        p.g = 160;
+        p.drag = 1.6;
       }
-      emit({ x: cx, y: cy, life: 0.5, size: 6, grow: 70, color: '#ffe66d', kind: 'ring' });
+      emitRing(cx, cy, 0.5, 6, 70, '#ffe66d');
     }
   }
 
@@ -1523,24 +1725,27 @@
     for (let i = 0; i < 46; i++) {
       const a = rand(0, TAU);
       const s = rand(120, 620);
-      emit({
-        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
-        life: rand(0.35, 0.9), size: rand(2, 3),
-        color: pick([color.core, color.light, '#ffffff', '#fff3a0']),
-        kind: 'streak', g: 500, drag: 2, bounce: true,
-      });
+      const r = Math.random();
+      const c = r < 0.25 ? color.core : r < 0.5 ? color.light : r < 0.75 ? '#ffffff' : '#fff3a0';
+      const p = emit(x, y, rand(0.35, 0.9), 'streak', c);
+      if (!p) break;
+      p.vx = Math.cos(a) * s;
+      p.vy = Math.sin(a) * s;
+      p.size = rand(2, 3);
+      p.g = 500;
+      p.drag = 2;
+      p.bounce = true;
     }
-    emit({ x, y, life: 0.45, size: 12, grow: 90, color: color.core, kind: 'ring' });
-    emit({ x, y, life: 0.3, size: 8, grow: 60, color: '#ffffff', kind: 'ring' });
+    emitRing(x, y, 0.45, 12, 90, color.core);
+    emitRing(x, y, 0.3, 8, 60, '#ffffff');
   }
 
   function updateParticles(dt) {
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
+    for (let i = particles.count - 1; i >= 0; i--) {
+      const p = particles.items[i];
       p.life -= dt;
       if (p.life <= 0) {
-        particles[i] = particles[particles.length - 1];
-        particles.pop();
+        release(particles, i);
         continue;
       }
       if (p.drag) {
@@ -1569,7 +1774,8 @@
       anim.flipQueued = 3;
       sound.milestone();
     }
-    game.targetSpeed = Math.min(CONFIG.MAX_SPEED, CONFIG.BASE_SPEED + game.speedLevel * CONFIG.SPEED_STEP);
+    game.aliveTime += dt;
+    game.targetSpeed = lerp(CONFIG.BASE_SPEED, CONFIG.MAX_SPEED, difficulty());
     game.speed = damp(game.speed, game.targetSpeed, CONFIG.SPEED_LERP, dt);
   }
 
@@ -1640,24 +1846,18 @@
   }
 
   function updateWorld(dx, dt) {
-    for (let i = coins.length - 1; i >= 0; i--) {
-      const c = coins[i];
-      c.x -= dx;
-      if (c.x < -40) {
-        coins[i] = coins[coins.length - 1];
-        coins.pop();
-      }
+    for (let i = lightbulbs.count - 1; i >= 0; i--) {
+      const b = lightbulbs.items[i];
+      b.x -= dx;
+      if (b.x < -40) release(lightbulbs, i);
     }
 
-    for (let i = zappers.length - 1; i >= 0; i--) {
-      const z = zappers[i];
+    for (let i = zappers.count - 1; i >= 0; i--) {
+      const z = zappers.items[i];
       z.x -= dx;
       if (z.spin) z.angle += z.spin * dt;
       updateZapperEnds(z);
-      if (z.x + z.len / 2 + NR < -60) {
-        zappers[i] = zappers[zappers.length - 1];
-        zappers.pop();
-      }
+      if (z.x + z.len / 2 + NR < -60) release(zappers, i);
     }
 
     if (game.state === 'playing') {
@@ -1666,32 +1866,40 @@
     }
   }
 
-  function getHitbox() {
-    return { x: player.x - 12, y: player.y - 32, w: 26, h: 64 };
-  }
+  const hitbox = { x: 0, y: 0, w: 26, h: 64 };
+  const pickupBox = { x: 0, y: 0, w: 38, h: 72 };
 
   function checkCollisions() {
-    const hb = getHitbox();
-    const pickup = { x: hb.x - 6, y: hb.y - 4, w: hb.w + 12, h: hb.h + 8 };
+    const hb = hitbox;
+    hb.x = player.x - 12;
+    hb.y = player.y - 32;
+    const pickup = pickupBox;
+    pickup.x = hb.x - 6;
+    pickup.y = hb.y - 4;
 
-    for (let i = coins.length - 1; i >= 0; i--) {
-      const c = coins[i];
-      if (Math.abs(c.x - player.x) > 50) continue;
-      if (pointRectDist(c.x, c.y, pickup) <= CONFIG.COIN_R) {
+    for (let i = lightbulbs.count - 1; i >= 0; i--) {
+      const b = lightbulbs.items[i];
+      if (Math.abs(b.x - player.x) > 50) continue;
+      if (pointRectDist(b.x, b.y, pickup) <= CONFIG.LIGHTBULB_R) {
         game.energy += 1;
-        game.coinCombo = game.time - game.lastCoinTime < 0.35 ? game.coinCombo + 1 : 0;
-        game.lastCoinTime = game.time;
-        sound.coin(game.coinCombo);
+        game.lightbulbCombo = game.time - game.lastLightbulbTime < 0.35 ? game.lightbulbCombo + 1 : 0;
+        game.lastLightbulbTime = game.time;
+        sound.lightbulb(game.lightbulbCombo);
         checkLightMilestone();
         anim.glow = 1;
-        if (popups.length < 14) popups.push({ x: c.x, y: c.y - 10, life: 0.6 });
-        burstCoin(c.x, c.y);
-        coins[i] = coins[coins.length - 1];
-        coins.pop();
+        if (popups.count < POPUPS_MAX) {
+          const p = acquire(popups);
+          p.x = b.x;
+          p.y = b.y - 10;
+          p.life = 0.6;
+        }
+        burstLightbulb(b.x, b.y);
+        release(lightbulbs, i);
       }
     }
 
-    for (const z of zappers) {
+    for (let i = 0; i < zappers.count; i++) {
+      const z = zappers.items[i];
       if (Math.abs(z.x - player.x) > z.len / 2 + NR + 50) continue;
       if (
         segRectDist(z.ax, z.ay, z.bx, z.by, hb) <= CONFIG.ZAPPER_R ||
@@ -1765,7 +1973,8 @@
       player.landImpact = 0;
     }
 
-    for (const z of zappers) {
+    for (let i = 0; i < zappers.count; i++) {
+      const z = zappers.items[i];
       if (z.x < view.w + 40 && Math.random() < dt * 7) emitZapperSpark(z);
     }
 
@@ -1775,7 +1984,8 @@
 
     let hum = 0;
     if (game.state === 'playing') {
-      for (const z of zappers) {
+      for (let i = 0; i < zappers.count; i++) {
+        const z = zappers.items[i];
         if (Math.abs(z.x - player.x) > z.len / 2 + 260) continue;
         const d = pointSegDist(player.x, player.y, z.ax, z.ay, z.bx, z.by);
         hum = Math.max(hum, clamp(1 - d / 240, 0, 1));
@@ -1838,26 +2048,28 @@
         train.smokeAcc += dt * 8;
         while (train.smokeAcc >= 1) {
           train.smokeAcc -= 1;
-          if (smoke.length < 40) {
-            smoke.push({
-              x: train.x + w * TRAIN_CHIMNEY.x + rand(-2, 2),
-              y: CONFIG.GROUND_Y + 4 - LAYER_H.train * (1 - TRAIN_CHIMNEY.y),
-              vx: rand(-25, -5), vy: rand(-55, -35),
-              life: rand(0.9, 1.4), max: 1.4, r: rand(3, 5),
-            });
+          if (smoke.count < SMOKE_MAX) {
+            const p = acquire(smoke);
+            p.x = train.x + w * TRAIN_CHIMNEY.x + rand(-2, 2);
+            p.y = CONFIG.GROUND_Y + 4 - LAYER_H.train * (1 - TRAIN_CHIMNEY.y);
+            p.vx = rand(-25, -5);
+            p.vy = rand(-55, -35);
+            p.life = rand(0.9, 1.4);
+            p.max = 1.4;
+            p.r = rand(3, 5);
           }
         }
       }
     }
 
-    for (let i = smoke.length - 1; i >= 0; i--) {
-      const p = smoke[i];
+    for (let i = smoke.count - 1; i >= 0; i--) {
+      const p = smoke.items[i];
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.vy *= Math.exp(-0.8 * dt);
       p.r += 12 * dt;
-      if (p.life <= 0) smoke.splice(i, 1);
+      if (p.life <= 0) release(smoke, i);
     }
   }
 
@@ -1907,12 +2119,12 @@
       }
     }
 
-    for (let i = popups.length - 1; i >= 0; i--) {
-      const p = popups[i];
+    for (let i = popups.count - 1; i >= 0; i--) {
+      const p = popups.items[i];
       p.life -= dt;
       p.x -= game.speed * dt;
       p.y -= 70 * dt;
-      if (p.life <= 0) popups.splice(i, 1);
+      if (p.life <= 0) release(popups, i);
     }
 
     updateTrain(dt);
@@ -1932,17 +2144,28 @@
       anim.trailAcc += dt;
       if (anim.trailAcc > 0.035) {
         anim.trailAcc = 0;
-        trail.push({ x: player.x, y: player.y, frame: anim.frame, rot: player.tilt, life: 0.22, max: 0.22 });
-        if (trail.length > 6) trail.shift();
+        // Con la estela llena se reutiliza la imagen fantasma más antigua (la de menos vida).
+        let t;
+        if (trail.count < TRAIL_MAX) {
+          t = acquire(trail);
+        } else {
+          t = trail.items[0];
+          for (let i = 1; i < trail.count; i++) if (trail.items[i].life < t.life) t = trail.items[i];
+        }
+        t.x = player.x;
+        t.y = player.y;
+        t.frame = anim.frame;
+        t.rot = player.tilt;
+        t.life = t.max = 0.22;
       }
     } else {
       anim.trailAcc = 0;
     }
-    for (let i = trail.length - 1; i >= 0; i--) {
-      const t = trail[i];
+    for (let i = trail.count - 1; i >= 0; i--) {
+      const t = trail.items[i];
       t.life -= dt;
       t.x -= game.speed * dt * 0.7;
-      if (t.life <= 0) trail.splice(i, 1);
+      if (t.life <= 0) release(trail, i);
     }
   }
 
@@ -1991,8 +2214,137 @@
     ctx.stroke();
   }
 
+  // Coordenada de mundo → borde de píxel físico más cercano. Se redondea en píxeles de pantalla
+  // (no en unidades de mundo: con la escala del móvil una unidad son varios píxeles y el fondo
+  // avanzaría a saltos).
+  const snapX = (x) => (Math.round(x * view.k + view.tx) - view.tx) / view.k;
+  const snapY = (y) => (Math.round(y * view.k + view.ty) - view.ty) / view.k;
+
+  // Capas ilustradas preescaladas una vez al tamaño exacto en pantalla (se rehacen al cambiar la
+  // escala). Así cada frame es una copia 1:1 alineada al píxel, en vez de reducir con suavizado
+  // alto imágenes de hasta 2600 px. Llevan 1 px extra de ancho para que las copias contiguas se
+  // solapen y nunca aparezca una costura.
+  const LAYER_KEYS = ['far', 'sanctuary', 'town', 'iglesia', 'letters', 'obelisk', 'tunnel', 'train', 'market'];
+  const LAYER_CACHE_MAX_PX = 6e6;
+  const layerCache = {};
+
+  function layerSize(key) {
+    if (key === 'far') {
+      const img = images.far;
+      return { w: LAYER_H.far * (img.naturalWidth / img.naturalHeight), h: LAYER_H.far };
+    }
+    return { w: layerW(key), h: LAYER_H[key] };
+  }
+
+  function scaledLayer(key) {
+    const img = images[key];
+    if (!ready(img)) return null;
+    const { w, h } = layerSize(key);
+    const pw = Math.ceil(w * view.k) + 1;
+    const ph = Math.round(h * view.k);
+    let c = layerCache[key];
+    if (c && c.width === pw && c.height === ph) return c;
+    if (pw * ph > LAYER_CACHE_MAX_PX) return null;
+    c = c || document.createElement('canvas');
+    c.width = pw;
+    c.height = ph;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    g.clearRect(0, 0, pw, ph);
+    g.drawImage(img, 0, 0, pw, ph);
+    layerCache[key] = c;
+    return c;
+  }
+
+  // Se preparan al redimensionar y al cargar cada imagen, nunca a mitad de partida.
+  function warmLayers() {
+    for (const key of LAYER_KEYS) scaledLayer(key);
+  }
+  for (const key of LAYER_KEYS) images[key].addEventListener('load', warmLayers);
+
+  function drawLayer(key, x, y, flip) {
+    const img = images[key];
+    if (!ready(img)) return;
+    const cached = scaledLayer(key);
+    let dx = snapX(x);
+    const dy = snapY(y);
+    let src, dw, dh;
+    if (cached) {
+      src = cached;
+      dw = cached.width / view.k;
+      dh = cached.height / view.k;
+    } else {
+      // Respaldo (capa demasiado grande para cachear): imagen original con 1 px de solape.
+      const size = layerSize(key);
+      src = img;
+      dx -= 0.5 / view.k;
+      dw = size.w + 1 / view.k;
+      dh = size.h;
+    }
+    if (flip) {
+      ctx.save();
+      ctx.translate(dx + dw, dy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(src, 0, 0, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(src, dx, dy, dw, dh);
+    }
+  }
+
+  // Filtro de "ciudad apagada": la cadena solo se rehace cuando cambia el nivel de luz.
+  let cityFilterKey = -1;
+  let cityFilterValue = '';
+
+  function cityFilter() {
+    const dim = 1 - game.light;
+    if (!CAN_FILTER || dim <= 0.01) return '';
+    const q = Math.round(dim * 1000);
+    if (q !== cityFilterKey) {
+      const d = q / 1000;
+      cityFilterKey = q;
+      cityFilterValue = `brightness(${(1 - 0.45 * d).toFixed(3)}) saturate(${(1 - 0.35 * d).toFixed(3)})`;
+    }
+    return cityFilterValue;
+  }
+
+  // Redirige el dibujo a fxCtx (con la misma transformación) para filtrar el grupo de una vez.
+  // y0..y1 es la franja del mundo que ocupa el grupo: solo esa franja se limpia y se compone.
+  const fxBand = { top: 0, h: 0 };
+
+  function beginFiltered(y0, y1) {
+    const H = fxCanvas.height;
+    const top = clamp(Math.floor(y0 * view.k + view.ty) - 2, 0, H);
+    const bottom = clamp(Math.ceil(y1 * view.k + view.ty) + 2, 0, H);
+    fxBand.top = top;
+    fxBand.h = bottom - top;
+    fxCtx.setTransform(1, 0, 0, 1, 0, 0);
+    fxCtx.clearRect(0, top, fxCanvas.width, fxBand.h);
+    fxCtx.setTransform(view.k, 0, 0, view.k, view.tx, view.ty);
+    fxCtx.globalAlpha = 1;
+    fxCtx.globalCompositeOperation = 'source-over';
+    fxCtx.filter = 'none';
+    fxCtx.imageSmoothingEnabled = true;
+    fxCtx.imageSmoothingQuality = 'high';
+    fxCtx.lineCap = 'round';
+    fxCtx.lineJoin = 'round';
+    ctx = fxCtx;
+  }
+
+  function endFiltered(filter) {
+    ctx = mainCtx;
+    if (fxBand.h <= 0) return;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.filter = filter;
+    ctx.drawImage(fxCanvas, 0, fxBand.top, fxCanvas.width, fxBand.h, 0, fxBand.top, fxCanvas.width, fxBand.h);
+    ctx.restore();
+  }
+
   // Repite una capa horizontalmente alternando copias en espejo (sin costuras visibles).
-  function drawTiled(img, offset, bottom, height) {
+  function drawTiled(key, offset, bottom, height) {
+    const img = images[key];
     if (!ready(img)) return;
     const w = img.naturalWidth * (height / img.naturalHeight);
     const y = bottom - height;
@@ -2000,15 +2352,7 @@
     const start = -(((offset % period) + period) % period);
     for (let i = 0, x = start; x < view.w + 1; i++, x += w) {
       if (x + w < 0) continue;
-      if (i % 2 === 1) {
-        ctx.save();
-        ctx.translate(x + w, y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(img, -0.5, 0, w + 1, height);
-        ctx.restore();
-      } else {
-        ctx.drawImage(img, x - 0.5, y, w + 1, height);
-      }
+      drawLayer(key, x, y, i % 2 === 1);
     }
   }
 
@@ -2020,20 +2364,38 @@
     ctx.fillStyle = SKY_TOP_COLOR;
     ctx.fillRect(-10, top, view.w + 20, CONFIG.GROUND_Y - top);
 
-    const img = images.far;
-    if (!ready(img)) return;
+    if (!ready(images.far)) return;
     const bottom = CONFIG.GROUND_Y + 30;
-    drawTiled(img, game.scroll * PARALLAX.far, bottom, LAYER_H.far);
+    drawTiled('far', game.scroll * PARALLAX.far, bottom, LAYER_H.far);
 
     // Fundido del borde superior de la imagen con el color del cielo.
     const imgTop = bottom - LAYER_H.far;
     if (imgTop > top) {
-      const grd = ctx.createLinearGradient(0, imgTop, 0, imgTop + 60);
-      grd.addColorStop(0, SKY_TOP_COLOR);
-      grd.addColorStop(1, 'rgba(55, 33, 114, 0)');
-      ctx.fillStyle = grd;
+      ctx.fillStyle = gradients().skyFade;
       ctx.fillRect(-10, imgTop - 1, view.w + 20, 61);
     }
+  }
+
+  // Degradados fijos en coordenadas de mundo: se crean una sola vez, no en cada frame.
+  let gradientCache = null;
+
+  function gradients() {
+    if (gradientCache) return gradientCache;
+    const G = CONFIG.GROUND_Y;
+    const linear = (y0, y1, stops) => {
+      const grd = ctx.createLinearGradient(0, y0, 0, y1);
+      for (const [at, color] of stops) grd.addColorStop(at, color);
+      return grd;
+    };
+    const imgTop = G + 30 - LAYER_H.far;
+    gradientCache = {
+      skyFade: linear(imgTop, imgTop + 60, [[0, SKY_TOP_COLOR], [1, 'rgba(55, 33, 114, 0)']]),
+      sidewalk: linear(G, G + 16, [[0, '#bdb7d6'], [0.15, '#958eb0'], [1, '#7c7599']]),
+      curb: linear(G + 16, G + 22, [[0, '#736c90'], [1, '#433c5a']]),
+      asphalt: linear(G + 22, CONFIG.WORLD_H, [[0, '#2c2a38'], [0.25, '#3d3b4c'], [1, '#33313f']]),
+      lampCone: linear(LAMP_Y, G + 16, [[0, 'rgba(255, 220, 130, 0.28)'], [1, 'rgba(255, 200, 90, 0)']]),
+    };
+    return gradientCache;
   }
 
   // El Santuario solo aparece durante su escena; se mueve más lento que la calle (parallax),
@@ -2052,7 +2414,7 @@
       const s = c * P + anchor - off;
       const cx = view.w / 2 + (s - view.w / 2) * ratio;
       if (cx - w / 2 > view.w || cx + w / 2 < 0) continue;
-      ctx.drawImage(img, cx - w / 2, CONFIG.GROUND_Y - 28 - h, w, h);
+      drawLayer('sanctuary', cx - w / 2, CONFIG.GROUND_Y - 28 - h, false);
     }
   }
 
@@ -2068,17 +2430,7 @@
       for (const it of STREET.items) {
         const x = base + it.x;
         if (x > view.w || x + it.w < 0) continue;
-        const img = images[it.key];
-        if (!ready(img)) continue;
-        if (it.flip) {
-          ctx.save();
-          ctx.translate(x + it.w, bottom - it.h);
-          ctx.scale(-1, 1);
-          ctx.drawImage(img, -0.5, 0, it.w + 1, it.h);
-          ctx.restore();
-        } else {
-          ctx.drawImage(img, x - 0.5, bottom - it.h, it.w + 1, it.h);
-        }
+        drawLayer(it.key, x, bottom - it.h, it.flip);
       }
     }
   }
@@ -2209,8 +2561,13 @@
     return parade;
   }
 
+  // Franja vertical (mundo) que ocupan el público y sus carteles, para filtrarla de una vez.
+  const CROWD_BAND_TOP = CONFIG.GROUND_Y + CROWD.FOOT - CROWD.HEIGHT - 44;
+  const CROWD_BAND_BOTTOM = CONFIG.GROUND_Y + CROWD.FOOT + 6;
+
   // Simpatizantes en la acera, anclados por los pies y con la luz de la ciudad.
-  function drawCrowd() {
+  // Primero todas las sombras (sin filtro) y luego todas las figuras en una sola pasada filtrada.
+  function drawCrowd(filter) {
     const layout = crowdParade();
     if (!layout) return;
     const signs = crowdSigns();
@@ -2218,44 +2575,43 @@
     const first = Math.floor((off - 40) / layout.period);
     const last = Math.ceil((off + view.w + 40) / layout.period);
     const feet = CONFIG.GROUND_Y + CROWD.FOOT;
-    const dim = 1 - game.light;
-    const lightFilter = CAN_FILTER && dim > 0.01
-      ? `brightness(${(1 - 0.45 * dim).toFixed(3)}) saturate(${(1 - 0.35 * dim).toFixed(3)})`
-      : 'none';
+    const items = layout.items;
 
-    ctx.save();
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
+    ctx.fillStyle = 'rgba(20, 10, 36, 0.3)';
     for (let k = first; k <= last; k++) {
       const base = k * layout.period - off;
-      for (const it of layout.items) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.kind !== 'person') continue;
+        const x = base + it.x;
+        if (x > view.w + 12 || x + it.w < -12) continue;
+        ctx.beginPath();
+        ctx.ellipse(x + it.w / 2, feet + 1, Math.min(15, it.w * 0.2), 3, 0, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    if (filter) beginFiltered(CROWD_BAND_TOP, CROWD_BAND_BOTTOM);
+    for (let k = first; k <= last; k++) {
+      const base = k * layout.period - off;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
         const bob = Math.sin(game.time * 2.2 + it.phase) * 1.3;
         if (it.kind === 'person') {
           const img = images[it.key];
           if (!ready(img)) continue;
           const x = base + it.x;
           if (x > view.w + 12 || x + it.w < -12) continue;
-          const y = Math.round(feet - it.h + bob);
-
-          ctx.filter = 'none';
-          ctx.fillStyle = 'rgba(20, 10, 36, 0.3)';
-          ctx.beginPath();
-          ctx.ellipse(x + it.w / 2, feet + 1, Math.min(15, it.w * 0.2), 3, 0, 0, TAU);
-          ctx.fill();
-
-          ctx.filter = lightFilter;
-          ctx.save();
+          const y = snapY(feet - it.h + bob);
           if (it.flip) {
-            ctx.translate(Math.round(x + it.w), 0);
+            ctx.save();
+            ctx.translate(snapX(x + it.w), y);
             ctx.scale(-1, 1);
-            ctx.drawImage(img, 0, y, it.w, it.h);
+            ctx.drawImage(img, 0, 0, it.w, it.h);
+            ctx.restore();
           } else {
-            ctx.drawImage(img, x, y, it.w, it.h);
+            ctx.drawImage(img, snapX(x), y, it.w, it.h);
           }
-          ctx.restore();
         } else {
           const sign = signs[it.phrase];
           const aspect = sign.width / sign.height;
@@ -2266,25 +2622,26 @@
             sw = sh * aspect;
           }
           const x = base + it.x - sw / 2;
-          const y = Math.round(feet - it.head - sh + 4 + bob);
           if (x > view.w + 20 || x + sw < -20) continue;
-          ctx.filter = lightFilter;
-          ctx.drawImage(sign, x, y, sw, sh);
+          ctx.drawImage(sign, snapX(x), snapY(feet - it.head - sh + 4 + bob), sw, sh);
         }
       }
     }
-
-    ctx.restore();
-    ctx.filter = 'none';
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    if (filter) endFiltered(filter);
   }
 
   function drawTrain() {
     const off = game.scroll * PARALLAX.town;
-    for (const p of smoke) {
-      ctx.fillStyle = `rgba(150, 140, 165, ${0.65 * (p.life / p.max)})`;
-      circle(p.x - off, p.y, p.r);
+    if (smoke.count) {
+      ctx.fillStyle = 'rgb(150, 140, 165)';
+      for (let i = 0; i < smoke.count; i++) {
+        const p = smoke.items[i];
+        const x = p.x - off;
+        if (x + p.r < 0 || x - p.r > view.w) continue;
+        ctx.globalAlpha = 0.65 * (p.life / p.max);
+        circle(x, p.y, p.r);
+      }
+      ctx.globalAlpha = 1;
     }
 
     const img = images.train;
@@ -2292,6 +2649,7 @@
     const h = LAYER_H.train;
     const w = trainWidth();
     const sx = train.x - off;
+    if (sx > view.w || sx + w < 0) return;
     // Traqueteo: pequeños saltos rítmicos de la carrocería.
     const chug = Math.abs(Math.sin(game.time * 10)) * 1.3;
     const bottom = CONFIG.GROUND_Y + 4;
@@ -2300,7 +2658,7 @@
     ctx.beginPath();
     ctx.ellipse(sx + w / 2, bottom - 2, w * 0.48, 4, 0, 0, TAU);
     ctx.fill();
-    ctx.drawImage(img, sx, bottom - h - chug, w, h);
+    drawLayer('train', sx, bottom - h - chug, false);
 
     // Luz del farol del tren.
     ctx.save();
@@ -2311,7 +2669,7 @@
   }
 
   function drawPopups() {
-    if (!popups.length) return;
+    if (!popups.count) return;
     ctx.save();
     ctx.font = '18px "Lilita One", "Arial Black", system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -2319,7 +2677,8 @@
     ctx.lineWidth = 3.5;
     ctx.strokeStyle = 'rgba(90, 40, 0, 0.85)';
     ctx.fillStyle = '#ffe14d';
-    for (const p of popups) {
+    for (let i = 0; i < popups.count; i++) {
+      const p = popups.items[i];
       const t = p.life / 0.6;
       const s = 1 + (1 - t) * 0.3;
       ctx.globalAlpha = Math.min(1, t * 2);
@@ -2333,6 +2692,9 @@
     ctx.restore();
   }
 
+  // Anclajes de los tres cables en cada poste: [dx, dy] alternados en un arreglo plano.
+  const WIRES = [-16, 6, 16, 6, 0, 22];
+
   // Postes de luz y cableado eléctrico (capa intermedia rápida).
   function drawPoles() {
     const off = game.scroll * PARALLAX.poles;
@@ -2345,7 +2707,9 @@
     for (let i = first; i < last; i++) {
       const x1 = i * POLE_SPACING - off;
       const x2 = (i + 1) * POLE_SPACING - off;
-      for (const [dx, dy] of [[-16, 6], [16, 6], [0, 22]]) {
+      for (let w = 0; w < WIRES.length; w += 2) {
+        const dx = WIRES[w];
+        const dy = WIRES[w + 1];
         ctx.beginPath();
         ctx.moveTo(x1 + dx, POLE_TOP + dy);
         ctx.quadraticCurveTo((x1 + x2) / 2 + dx, POLE_TOP + dy + 34, x2 + dx, POLE_TOP + dy);
@@ -2386,10 +2750,9 @@
         const flicker = 0.92 + 0.08 * Math.sin(game.time * 13 + i * 3.1);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        const cone = ctx.createLinearGradient(0, LAMP_Y, 0, G + 16);
-        cone.addColorStop(0, `rgba(255, 220, 130, ${0.28 * flicker})`);
-        cone.addColorStop(1, 'rgba(255, 200, 90, 0)');
-        ctx.fillStyle = cone;
+        // El parpadeo se aplica con globalAlpha sobre un degradado fijo (mismo resultado).
+        ctx.globalAlpha = flicker;
+        ctx.fillStyle = gradients().lampCone;
         ctx.beginPath();
         ctx.moveTo(lx - 7, LAMP_Y + 3);
         ctx.lineTo(lx + 7, LAMP_Y + 3);
@@ -2397,7 +2760,6 @@
         ctx.lineTo(lx - 46, G + 16);
         ctx.closePath();
         ctx.fill();
-        ctx.globalAlpha = flicker;
         ctx.drawImage(thrustGlow, lx - 28, LAMP_Y - 26, 56, 56);
         ctx.restore();
       }
@@ -2417,12 +2779,10 @@
     const XW = view.w + 20;
     const bottom = view.bottom + 10;
 
+    const grads = gradients();
+
     // Acera de baldosas
-    let grd = ctx.createLinearGradient(0, G, 0, G + 16);
-    grd.addColorStop(0, '#bdb7d6');
-    grd.addColorStop(0.15, '#958eb0');
-    grd.addColorStop(1, '#7c7599');
-    ctx.fillStyle = grd;
+    ctx.fillStyle = grads.sidewalk;
     ctx.fillRect(X0, G, XW, 16);
     ctx.fillStyle = 'rgba(80, 72, 110, 0.7)';
     const J = 36;
@@ -2430,18 +2790,11 @@
     ctx.fillRect(X0, G + 8, XW, 1.2);
 
     // Bordillo
-    grd = ctx.createLinearGradient(0, G + 16, 0, G + 22);
-    grd.addColorStop(0, '#736c90');
-    grd.addColorStop(1, '#433c5a');
-    ctx.fillStyle = grd;
+    ctx.fillStyle = grads.curb;
     ctx.fillRect(X0, G + 16, XW, 6);
 
     // Asfalto
-    grd = ctx.createLinearGradient(0, G + 22, 0, CONFIG.WORLD_H);
-    grd.addColorStop(0, '#2c2a38');
-    grd.addColorStop(0.25, '#3d3b4c');
-    grd.addColorStop(1, '#33313f');
-    ctx.fillStyle = grd;
+    ctx.fillStyle = grads.asphalt;
     ctx.fillRect(X0, G + 22, XW, bottom - G - 22);
 
     // Líneas viales blancas
@@ -2463,30 +2816,29 @@
   // =====================================================================
   // RENDER: ENTIDADES
   // =====================================================================
-  function drawCoins() {
-    const S = COIN_SIZE;
+  function drawLightbulbs() {
+    const S = LIGHTBULB_SIZE;
     const t = game.time;
 
     ctx.globalCompositeOperation = 'lighter';
-    for (const c of coins) {
-      if (c.x > view.w + S || c.x < -S) continue;
-      ctx.drawImage(coinGlow, c.x - 30, c.y - 30, 60, 60);
+    for (let i = 0; i < lightbulbs.count; i++) {
+      const b = lightbulbs.items[i];
+      if (b.x > view.w + S || b.x < -S) continue;
+      ctx.globalAlpha = 0.75 + 0.25 * Math.sin(t * 6 + b.phase);
+      ctx.drawImage(lightbulbGlow, b.x - 34, b.y - 34, 68, 68);
     }
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
 
-    for (const c of coins) {
-      if (c.x > view.w + S || c.x < -S) continue;
-      // Giro 3D simulado: se estrecha el ancho y se oscurece al ponerse de canto.
-      const spin = Math.cos(t * 3.5 + c.phase);
-      const w = S * Math.max(0.12, Math.abs(spin));
-      const y = c.y + Math.sin(t * 3 + c.phase) * 2.5 - S / 2;
-      const sprite = coinSprites[c.kind];
-      if (!sprite) continue;
-      ctx.drawImage(sprite, c.x - w / 2, y, w, S);
-      if (Math.abs(spin) < 0.35) {
-        ctx.fillStyle = `rgba(150, 70, 0, ${0.5 * (1 - Math.abs(spin) / 0.35)})`;
-        roundRect(c.x - w / 2, y + 2, w, S - 4, w / 2);
-      }
+    if (!lightbulbSprite) return;
+    for (let i = 0; i < lightbulbs.count; i++) {
+      const b = lightbulbs.items[i];
+      if (b.x > view.w + S || b.x < -S) continue;
+      ctx.save();
+      ctx.translate(b.x, b.y + Math.sin(t * 3 + b.phase) * 2.5);
+      ctx.rotate(Math.sin(t * 2.6 + b.phase) * 0.16);
+      ctx.drawImage(lightbulbSprite, -S / 2, -S / 2, S, S);
+      ctx.restore();
     }
   }
 
@@ -2497,7 +2849,7 @@
     ctx.rotate(angle);
 
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(${c.rgb}, 0.25)`;
+    ctx.fillStyle = c.halo;
     circle(0, 0, NR + 10);
     ctx.globalCompositeOperation = 'source-over';
 
@@ -2522,8 +2874,10 @@
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    strokeLine(ax, ay, bx, by, `rgba(${c.rgb}, ${0.16 * flick})`, 28);
-    strokeLine(ax, ay, bx, by, `rgba(${c.rgb}, ${0.32 * flick})`, 13);
+    ctx.globalAlpha = flick;
+    strokeLine(ax, ay, bx, by, c.beamWide, 28);
+    strokeLine(ax, ay, bx, by, c.beamCore, 13);
+    ctx.globalAlpha = 1;
     jagged(ax, ay, bx, by, 9, 18, c.core, 3.5);
     jagged(ax, ay, bx, by, 7, 14, c.light, 2);
     jagged(ax, ay, bx, by, 4, 22, '#ffffff', 1.4);
@@ -2534,7 +2888,8 @@
   }
 
   function drawZappers() {
-    for (const z of zappers) {
+    for (let i = 0; i < zappers.count; i++) {
+      const z = zappers.items[i];
       if (z.x - z.len / 2 - NR - 30 > view.w || z.x + z.len / 2 + NR + 30 < 0) continue;
       drawZapper(z);
     }
@@ -2583,10 +2938,22 @@
     }
   }
 
+  function particleVisible(p) {
+    const m = 30 + p.size * 3 + p.grow;
+    return p.x > -m && p.x < view.w + m && p.y > view.top - m && p.y < view.bottom + m;
+  }
+
   function drawParticles() {
-    for (const p of particles) if (!p.add) drawParticle(p);
+    const items = particles.items;
+    for (let i = 0; i < particles.count; i++) {
+      const p = items[i];
+      if (!p.add && particleVisible(p)) drawParticle(p);
+    }
     ctx.globalCompositeOperation = 'lighter';
-    for (const p of particles) if (p.add) drawParticle(p);
+    for (let i = 0; i < particles.count; i++) {
+      const p = items[i];
+      if (p.add && particleVisible(p)) drawParticle(p);
+    }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
   }
@@ -2602,39 +2969,39 @@
     // Piloto encendido: luz suave que "respira" incluso sin empuje.
     if (!dead) {
       const idle = 0.35 + 0.15 * Math.sin(game.time * 6);
-      ctx.fillStyle = `rgba(125, 230, 255, ${idle * (1 - th)})`;
+      ctx.globalAlpha = idle * (1 - th);
+      ctx.fillStyle = 'rgb(125, 230, 255)';
       circle(n.x, n.y + 2, 3.5);
+      ctx.globalAlpha = 1;
     }
 
     if (th >= 0.05) {
       const flick = 0.85 + Math.random() * 0.3;
       ctx.drawImage(thrustGlow, n.x - 34, n.y - 24, 68, 68);
 
+      // La llama usa degradados fijos de longitud 1: se estiran con scale(1, L) y su opacidad
+      // se modula con globalAlpha = empuje (mismo resultado que crearlos en cada frame).
+      const flame = flameGradients();
       ctx.save();
       ctx.translate(n.x, n.y);
       ctx.rotate(0.42 + player.tilt);
       const L = (20 + 30 * th) * flick;
       const W = 6 + 2 * th;
-      let grd = ctx.createLinearGradient(0, 0, 0, L);
-      grd.addColorStop(0, `rgba(255, 250, 215, ${0.95 * th})`);
-      grd.addColorStop(0.35, `rgba(255, 196, 60, ${0.85 * th})`);
-      grd.addColorStop(1, 'rgba(255, 90, 20, 0)');
-      ctx.fillStyle = grd;
+      ctx.scale(1, L);
+      ctx.globalAlpha = th;
+      ctx.fillStyle = flame.outer;
       ctx.beginPath();
       ctx.moveTo(-W, 0);
-      ctx.quadraticCurveTo(-W * 0.9, L * 0.55, 0, L);
-      ctx.quadraticCurveTo(W * 0.9, L * 0.55, W, 0);
+      ctx.quadraticCurveTo(-W * 0.9, 0.55, 0, 1);
+      ctx.quadraticCurveTo(W * 0.9, 0.55, W, 0);
       ctx.closePath();
       ctx.fill();
 
-      grd = ctx.createLinearGradient(0, 0, 0, L * 0.55);
-      grd.addColorStop(0, `rgba(255, 255, 255, ${th})`);
-      grd.addColorStop(1, 'rgba(160, 240, 255, 0)');
-      ctx.fillStyle = grd;
+      ctx.fillStyle = flame.inner;
       ctx.beginPath();
       ctx.moveTo(-W * 0.45, 0);
-      ctx.quadraticCurveTo(0, L * 0.4, 0, L * 0.55);
-      ctx.quadraticCurveTo(0, L * 0.4, W * 0.45, 0);
+      ctx.quadraticCurveTo(0, 0.4, 0, 0.55);
+      ctx.quadraticCurveTo(0, 0.4, W * 0.45, 0);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -2642,11 +3009,27 @@
       const len = 40 + 90 * th;
       const ex = n.x - len * 0.45;
       const ey = n.y + len;
-      jagged(n.x, n.y, ex, ey, 9 * th, 14, `rgba(90, 210, 255, ${0.5 * th})`, 5);
-      jagged(n.x, n.y, ex, ey, 7 * th, 12, `rgba(210, 250, 255, ${0.85 * th})`, 1.6);
-      jagged(n.x, n.y, n.x - len * 0.25, n.y + len * 0.6, 6, 10, `rgba(255, 240, 140, ${0.7 * th})`, 1.4);
+      ctx.globalAlpha = th;
+      jagged(n.x, n.y, ex, ey, 9 * th, 14, 'rgba(90, 210, 255, 0.5)', 5);
+      jagged(n.x, n.y, ex, ey, 7 * th, 12, 'rgba(210, 250, 255, 0.85)', 1.6);
+      jagged(n.x, n.y, n.x - len * 0.25, n.y + len * 0.6, 6, 10, 'rgba(255, 240, 140, 0.7)', 1.4);
     }
     ctx.restore();
+  }
+
+  let flameCache = null;
+
+  function flameGradients() {
+    if (flameCache) return flameCache;
+    const outer = ctx.createLinearGradient(0, 0, 0, 1);
+    outer.addColorStop(0, 'rgba(255, 250, 215, 0.95)');
+    outer.addColorStop(0.35, 'rgba(255, 196, 60, 0.85)');
+    outer.addColorStop(1, 'rgba(255, 90, 20, 0)');
+    const inner = ctx.createLinearGradient(0, 0, 0, 0.55);
+    inner.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    inner.addColorStop(1, 'rgba(160, 240, 255, 0)');
+    flameCache = { outer, inner };
+    return flameCache;
   }
 
   // Sombra en el suelo: se encoge y se desvanece con la altura.
@@ -2654,10 +3037,12 @@
     const feet = player.y + player.h / 2;
     const h = Math.max(0, ROAD_Y - feet);
     const t = clamp(1 - h / 360, 0.12, 1);
-    ctx.fillStyle = `rgba(15, 8, 30, ${0.38 * t})`;
+    ctx.globalAlpha = 0.38 * t;
+    ctx.fillStyle = 'rgb(15, 8, 30)';
     ctx.beginPath();
     ctx.ellipse(player.x + 2, ROAD_Y + 2, 8 + 20 * t, 2 + 4 * t, 0, 0, TAU);
     ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   function drawPlayerFrame(src, frame, alpha) {
@@ -2681,7 +3066,8 @@
     if (!ready(sheet)) return;
 
     // Imágenes fantasma (estela de velocidad).
-    for (const t of trail) {
+    for (let i = 0; i < trail.count; i++) {
+      const t = trail.items[i];
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
@@ -2740,7 +3126,8 @@
     if (k <= 0) return;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(220, 230, 255, ${0.18 * k})`;
+    ctx.globalAlpha = k;
+    ctx.strokeStyle = 'rgba(220, 230, 255, 0.18)';
     ctx.lineWidth = 1.2;
     for (let i = 0; i < 7; i++) {
       const seed = i * 97.13;
@@ -2766,10 +3153,14 @@
       sy = rand(-m, m);
     }
 
-    const k = view.scale * view.dpr;
-    ctx.setTransform(k, 0, 0, k, sx * k, view.offsetY * view.dpr + sy * k);
+    const k = view.k;
+    view.tx = sx * k;
+    view.ty = view.offsetY * view.dpr + sy * k;
+    ctx = mainCtx;
+    ctx.setTransform(k, 0, 0, k, view.tx, view.ty);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
+    ctx.filter = 'none';
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.lineCap = 'round';
@@ -2777,20 +3168,18 @@
 
     drawSky();
     // Sin energía la ciudad se ve apagada; se va encendiendo a medida que se recolectan kW.
-    const dim = 1 - game.light;
-    const useFilter = CAN_FILTER && dim > 0.01;
-    if (useFilter) {
-      ctx.filter = `brightness(${(1 - 0.45 * dim).toFixed(3)}) saturate(${(1 - 0.35 * dim).toFixed(3)})`;
-    }
+    // El filtro se aplica una sola vez al grupo completo (Santuario + calle + tren).
+    const filter = cityFilter();
+    if (filter) beginFiltered(view.top, CONFIG.GROUND_Y + 10);
     drawSanctuary();
     drawStreet();
     drawTrain();
-    if (useFilter) ctx.filter = 'none';
+    if (filter) endFiltered(filter);
     drawPoles();
     drawRoad();
-    drawCrowd();
+    drawCrowd(filter);
     drawSpeedLines();
-    drawCoins();
+    drawLightbulbs();
     drawZappers();
     drawParticles();
     drawPlayer();
@@ -2800,8 +3189,10 @@
     ctx.fillStyle = vignetteGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (game.flash > 0) {
-      ctx.fillStyle = `rgba(220, 250, 255, ${game.flash * 0.7})`;
+      ctx.globalAlpha = game.flash * 0.7;
+      ctx.fillStyle = 'rgb(220, 250, 255)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -3046,7 +3437,7 @@
   resize();
   // Se arranca en la escena del Santuario, con la iglesia ya visible a la derecha.
   game.scroll = (STREET.marks.sanctuary - view.w * 0.95) / PARALLAX.town;
-  if (document.fonts) document.fonts.ready.then(() => { buildCoinSprites(); signSprites = null; });
+  if (document.fonts) document.fonts.ready.then(() => { signSprites = null; });
   setMuteUI();
   dom.startRecord.textContent = `${game.record} kW`;
   updateHUD();

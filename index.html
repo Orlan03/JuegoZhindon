@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
-  <meta name="description" content="Biblián Jetpack: vuela sobre Biblián, esquiva los zappers y recolecta toda la energía.">
+  <meta name="description" content="Biblián Jetpack: vuela sobre Biblián, esquiva los zappers y recoge los focos para iluminar Biblián.">
   <title>Biblián Jetpack · Energía</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,7 +23,7 @@
   <link rel="preload" as="image" href="assets/crowd/crowd_man.png?v=hd7">
   <link rel="preload" as="image" href="assets/crowd/crowd_flag.png?v=hd7">
   <link rel="preload" as="image" href="assets/iglesia.png?v=hd14">
-  <link rel="stylesheet" href="style.css?v=hd6">
+  <link rel="stylesheet" href="style.css?v=hd10">
 </head>
 <body>
   <main id="game" aria-label="Biblián Jetpack">
@@ -32,9 +32,9 @@
     <!-- HUD -->
     <div class="hud" id="hud">
       <div class="hud-card hud-energy">
-        <span class="hud-label">ENERGÍA RECOLECTADA</span>
+        <span class="hud-label">ENERGÍA:</span>
         <div class="hud-row">
-          <svg class="hud-bolt" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ffd60a" d="M13.5 2 4 14h6.5l-1 8L20 9.5h-6.6L13.5 2z"/></svg>
+          <svg class="hud-bolt" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ffd60a" d="M12 1.5a7 7 0 0 0-4 12.75V17h8v-2.75A7 7 0 0 0 12 1.5z"/><path fill="#c9cede" d="M8.5 18h7v1.6h-7zM9.75 20.6h4.5v1.4h-4.5z"/></svg>
           <span class="hud-value" id="energyValue">0 kW</span>
         </div>
         <div class="light-meter">
@@ -64,7 +64,7 @@
       <div class="start-content">
         <p class="title-kicker">JETPACK · KILOVATIOS</p>
         <h1 class="title">BIBLIÁN</h1>
-        <p class="subtitle">Vuela sobre la ciudad, esquiva los zappers y recolecta toda la energía.</p>
+        <p class="subtitle">Vuela sobre la ciudad, esquiva los zappers y recoge los focos para iluminar Biblián.</p>
 
         <div class="tap">TOCA PARA VOLAR</div>
 
@@ -118,19 +118,33 @@
             <span>Número de WhatsApp</span>
             <input id="scorePhone" name="whatsapp" type="tel" inputmode="numeric" autocomplete="tel" maxlength="14" required placeholder="09xxxxxxxx">
           </label>
+          <fieldset class="choice">
+            <legend>¿Vives en el cantón Biblián?</legend>
+            <div class="choice-options">
+              <label class="choice-option"><input type="radio" name="es_biblian" value="si" required> Sí</label>
+              <label class="choice-option"><input type="radio" name="es_biblian" value="no"> No</label>
+            </div>
+          </fieldset>
+          <label class="field" id="parishField" hidden>
+            <span>Parroquia</span>
+            <select id="scoreParish" name="parroquia">
+              <option value="">Elige tu parroquia</option>
+              <option>Centro Urbano</option>
+              <option>Nazón</option>
+              <option>San Francisco de Sageo</option>
+              <option>Turupamba</option>
+              <option>Jerusalén</option>
+            </select>
+          </label>
           <label class="check">
             <input id="consentPrize" name="acepta_premio" type="checkbox" required>
             <span>Acepto el <a href="#privacy" class="privacy-link" data-privacy>aviso de privacidad</a> y que usen mi nombre y WhatsApp para el Top 10 y para contactarme si gano un premio. <strong>(Obligatorio)</strong></span>
           </label>
-          <label class="check">
-            <input id="consentCampaign" name="acepta_campana" type="checkbox">
-            <span>Soy mayor de 18 años y acepto recibir por WhatsApp información de la campaña de Miguel Zhindón. <em>(Opcional: no afecta tu participación por el premio)</em></span>
-          </label>
           <details class="privacy" id="privacy">
             <summary>Aviso de privacidad</summary>
             <p><strong>Responsable:</strong> <span data-privacy-owner></span>. <strong>Contacto:</strong> <span data-privacy-contact></span>.</p>
-            <p><strong>Qué datos:</strong> nombre, número de WhatsApp, puntaje y fecha de registro.</p>
-            <p><strong>Para qué:</strong> mostrar tu nombre y puntaje en el Top 10 público y contactarte si ganas un premio. Solo si marcas la segunda casilla, también para enviarte información de la campaña.</p>
+            <p><strong>Qué datos:</strong> nombre, número de WhatsApp, si vives en el cantón Biblián y, solo en ese caso, tu parroquia, además del puntaje y la fecha de registro.</p>
+            <p><strong>Para qué:</strong> mostrar tu nombre y puntaje en el Top 10 público, contactarte si ganas un premio y saber desde qué parroquias se participa (la parroquia nunca se publica).</p>
             <p><strong>Tu número nunca se publica.</strong> No se vende ni se cede a terceros.</p>
             <p><strong>Cuánto tiempo:</strong> hasta <span data-privacy-until></span>; después se eliminan.</p>
             <p><strong>Tus derechos:</strong> puedes pedir ver, corregir o eliminar tus datos, o retirar tu consentimiento en cualquier momento, escribiendo al contacto indicado (Ley Orgánica de Protección de Datos Personales del Ecuador).</p>
@@ -154,6 +168,16 @@
     </section>
   </main>
 
-  <script src="game.js?v=hd37"></script>
+  <!-- Video obligatorio tras registrar el puntaje -->
+  <div class="promo" id="promoVideo" role="dialog" aria-modal="true" aria-label="Mensaje de Miguel Zhindón" hidden>
+    <video class="promo__video" id="promoPlayer" src="assets/video-registro.mp4" playsinline preload="none"></video>
+    <button type="button" class="promo__unmute" id="promoUnmute" hidden>🔊 Toca para activar el sonido</button>
+    <div class="promo__actions" id="promoActions" hidden>
+      <button type="button" class="btn btn--save" id="promoMore">Conoce más a Miguel Zhindón</button>
+      <button type="button" class="btn" id="promoReplay">Volver a jugar</button>
+    </div>
+  </div>
+
+  <script src="game.js?v=hd45"></script>
 </body>
 </html>

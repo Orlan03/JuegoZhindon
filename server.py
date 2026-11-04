@@ -27,6 +27,7 @@ import secrets
 import sys
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -55,6 +56,116 @@ PROXY_HEADERS = ("Cf-Connecting-Ip", "Cf-Ray", "X-Forwarded-For", "X-Forwarded-H
 
 lock = threading.Lock()
 config_lock = threading.Lock()
+
+# --- Protección contra puntajes falsos y spam ---
+# Límites por IP: (máximo de peticiones, en cuántos segundos). Generosos porque en un evento varias
+# personas juegan en el mismo aparato y las operadoras móviles comparten una IP entre muchos clientes.
+SCORE_LIMITS = ((10, 60), (120, 3600))
+RUN_LIMITS = ((30, 60), (600, 3600))
+ADMIN_FAILURES_MAX = 10  # intentos de clave fallidos por IP en ADMIN_FAILURES_WINDOW segundos
+ADMIN_FAILURES_WINDOW = 600
+# Cada partida pide un ticket al empezar; el puntaje no puede superar lo alcanzable en ese tiempo.
+# Un jugador real recoge bastante menos de 8 focos por segundo en promedio.
+MAX_FOCOS_PER_SECOND = 8
+SCORE_GRACE = 25
+RUN_TTL = 3 * 3600
+MAX_RUNS = 20_000
+NAME_RE = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]+$")
+
+
+class RateLimiter:
+    def __init__(self):
+        self.hits = {}
+        self.lock = threading.Lock()
+
+    def _recent(self, key, now, horizon):
+        hits = [t for t in self.hits.get(key, ()) if t > now - horizon]
+        self.hits[key] = hits
+        return hits
+
+    def allow(self, key, limits):
+        """Registra un intento y devuelve False si supera alguno de los límites."""
+        now = time.time()
+        with self.lock:
+            hits = self._recent(key, now, max(seconds for _, seconds in limits))
+            if any(sum(t > now - seconds for t in hits) >= count for count, seconds in limits):
+                return False
+            hits.append(now)
+            if len(self.hits) > 50_000:
+                self.hits = {k: v for k, v in self.hits.items() if v}
+            return True
+
+    def count(self, key, seconds):
+        with self.lock:
+            return len(self._recent(key, time.time(), seconds))
+
+    def add(self, key):
+        with self.lock:
+            self.hits.setdefault(key, []).append(time.time())
+
+
+score_limiter = RateLimiter()
+run_limiter = RateLimiter()
+admin_failures = RateLimiter()
+runs = {}
+runs_lock = threading.Lock()
+
+
+def start_run():
+    now = time.time()
+    run_id = secrets.token_urlsafe(12)
+    with runs_lock:
+        if len(runs) >= MAX_RUNS:
+            for key in [k for k, t in runs.items() if t < now - RUN_TTL] or sorted(runs, key=runs.get)[: MAX_RUNS // 10]:
+                runs.pop(key, None)
+        runs[run_id] = now
+    return run_id
+
+
+def claim_run(run_id):
+    """Devuelve cuándo empezó la partida y la marca como usada: cada ticket sirve para un solo registro."""
+    with runs_lock:
+        started = runs.pop(run_id, None)
+    return started if started and started > time.time() - RUN_TTL else None
+
+
+def simplify(text):
+    """Minúsculas sin tildes, con números tipo "leet" como letras y sin letras repetidas ("puuuta" → "puta")."""
+    text = unicodedata.normalize("NFKD", text.lower())
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = text.translate(str.maketrans("013457@$", "oieastas"))
+    return re.sub(r"(.)\1+", r"\1", text)
+
+
+# Palabras completas (no se buscan dentro de otras: "diputado" contiene "puta", "Vergara" contiene "verga").
+BLOCKED_WORDS = {simplify(w) for w in (
+    "puta", "putas", "puto", "putos", "perra", "perras", "zorra", "zorras", "culo", "culos", "chucha", "chuchas",
+    "verga", "vergas", "idiota", "idiotas", "imbecil", "estupido", "estupida", "cabron", "cabrona", "marica",
+    "maricas", "ladron", "ladrona", "ladrones", "rata", "ratas", "basura", "fraude", "fraudes", "mentiroso",
+    "mentirosa", "mentirosos", "payaso", "payasos", "nazi", "narco", "narcos", "hp", "hdp", "ctm", "mrd", "pndj",
+)}
+# Raíces sin falsos positivos conocidos: se buscan incluso pegadas o dentro del nombre.
+BLOCKED_ROOTS = tuple(simplify(w) for w in (
+    "hijueputa", "hijoeputa", "hijodeputa", "mamaverga", "careverga", "carechimba", "malparid", "maricon",
+    "pendej", "cojud", "mierd", "huevon", "guevon", "culer", "prostitut", "violador", "pedofil", "corrupt",
+))
+
+
+LINK_RE = re.compile(r"www|https?|\.\s*(?:com|net|org|ec|info|xyz|ly|me|io)\b", re.IGNORECASE)
+
+
+def name_problem(name):
+    if not NAME_RE.match(name) or LINK_RE.search(name):
+        return "Escribe tu nombre solo con letras."
+    words = re.findall(r"[a-z]+", simplify(name))
+    joined = "".join(words)
+    if any(w in BLOCKED_WORDS for w in words) or any(root in joined for root in BLOCKED_ROOTS):
+        return "Ese nombre no está permitido. Escribe tu nombre y apellido reales."
+    return None
+
+
+def mask_phone(phone):
+    return f"{phone[:2]}••••{phone[-4:]}"
 
 DEFAULT_CONFIG = {
     "texts": {
@@ -380,9 +491,30 @@ class GameHandler(SimpleHTTPRequestHandler):
             or parts[-1].endswith(PRIVATE_SUFFIXES)
         )
 
+    def client_ip(self):
+        peer = self.client_address[0]
+        try:
+            via_local_proxy = ipaddress.ip_address(peer).is_loopback
+        except ValueError:
+            via_local_proxy = False
+        if via_local_proxy:
+            # Detrás del túnel la conexión llega desde 127.0.0.1: la IP real la indica el proxy.
+            forwarded = self.headers.get("Cf-Connecting-Ip") or self.headers.get("X-Forwarded-For", "").split(",")[0]
+            if forwarded.strip():
+                return forwarded.strip()
+        return peer
+
+    def admin_blocked(self):
+        return admin_failures.count(self.client_ip(), ADMIN_FAILURES_WINDOW) >= ADMIN_FAILURES_MAX
+
     def is_admin(self):
+        if self.admin_blocked():
+            return False
         key = self.headers.get("X-Admin-Key", "")
-        return bool(key) and secrets.compare_digest(key.encode("utf-8"), ADMIN_KEY.encode("utf-8"))
+        ok = bool(key) and secrets.compare_digest(key.encode("utf-8"), ADMIN_KEY.encode("utf-8"))
+        if not ok:
+            admin_failures.add(self.client_ip())
+        return ok
 
     def read_body(self, limit):
         length = int(self.headers.get("Content-Length", 0) or 0)
@@ -405,7 +537,46 @@ class GameHandler(SimpleHTTPRequestHandler):
 
     def reject_unauthorized(self):
         self.discard_body()
-        return self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Clave de administrador incorrecta."})
+        message = (
+            f"Demasiados intentos fallidos. Espera {ADMIN_FAILURES_WINDOW // 60} minutos."
+            if self.admin_blocked() else "Clave de administrador incorrecta."
+        )
+        return self.send_json(HTTPStatus.UNAUTHORIZED, {"error": message})
+
+    def admin_top(self):
+        rows = load_rows()
+        plays = {}
+        for r in rows:
+            plays[r["token"]] = plays.get(r["token"], 0) + 1
+        ordered = sorted(best_by_phone(rows).values(), key=lambda r: (-r["score"], r["at"]))[:BOARD_SIZE]
+        return [
+            {"token": r["token"], "name": r["name"], "score": r["score"], "at": r["at"],
+             "phone": mask_phone(r["whatsapp"]), "plays": plays[r["token"]]}
+            for r in ordered
+        ]
+
+    def handle_top_delete(self):
+        """Quita del Top (y del Excel) todas las partidas de un WhatsApp: para nombres ofensivos o falsos."""
+        if not self.is_admin():
+            return self.reject_unauthorized()
+        try:
+            token = str(json.loads(self.read_body(4096) or b"{}").get("token", ""))
+        except (OverflowError, ValueError, AttributeError):
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Datos inválidos."})
+        with lock:
+            rows = load_rows()
+            kept = [r for r in rows if r["token"] != token]
+            if len(kept) == len(rows):
+                return self.send_json(HTTPStatus.NOT_FOUND, {"error": "Ese registro ya no existe."})
+            save_rows(kept)
+            top = self.admin_top()
+        return self.send_json(HTTPStatus.OK, {"top": top, "removed": len(rows) - len(kept)})
+
+    def handle_run_start(self):
+        self.discard_body()
+        if not run_limiter.allow(self.client_ip(), RUN_LIMITS):
+            return self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "Demasiadas partidas seguidas."})
+        return self.send_json(HTTPStatus.OK, {"run": start_run()})
 
     def handle_config_post(self):
         if not self.is_admin():
@@ -599,8 +770,14 @@ class GameHandler(SimpleHTTPRequestHandler):
             return self.send_json(HTTPStatus.OK, {"config": config})
         if path == "/api/admin/check":
             if not self.is_admin():
-                return self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Clave de administrador incorrecta."})
+                return self.reject_unauthorized()
             return self.send_json(HTTPStatus.OK, {"ok": True})
+        if path == "/api/admin/top":
+            if not self.is_admin():
+                return self.reject_unauthorized()
+            with lock:
+                top = self.admin_top()
+            return self.send_json(HTTPStatus.OK, {"top": top})
         if path.rstrip("/") == EXPORT_PATH:
             if not self.is_local_admin():
                 return self.send_error(HTTPStatus.NOT_FOUND)
@@ -627,8 +804,15 @@ class GameHandler(SimpleHTTPRequestHandler):
             return self.handle_video_upload()
         if path == "/api/videos/delete":
             return self.handle_video_delete()
+        if path == "/api/admin/top/delete":
+            return self.handle_top_delete()
+        if path == "/api/run":
+            return self.handle_run_start()
         if path != "/api/scores":
             return self.send_error(HTTPStatus.NOT_FOUND)
+        if not score_limiter.allow(self.client_ip(), SCORE_LIMITS):
+            self.discard_body()
+            return self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "Demasiados registros seguidos. Espera un momento."})
         try:
             length = min(int(self.headers.get("Content-Length", 0)), 4096)
             data = json.loads(self.rfile.read(length) or b"{}")
@@ -644,6 +828,9 @@ class GameHandler(SimpleHTTPRequestHandler):
 
         if len(LETTER_RE.findall(name)) < 3:
             return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Escribe tu nombre y apellido (mínimo 3 letras)."})
+        problem = name_problem(name)
+        if problem:
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": problem})
         if not re.fullmatch(r"\d{10}", phone):
             return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "El WhatsApp debe tener 10 dígitos."})
         if not 0 <= score <= MAX_SCORE:
@@ -657,6 +844,13 @@ class GameHandler(SimpleHTTPRequestHandler):
         parroquia = data.get("parroquia") if es_biblian else None
         if es_biblian and parroquia not in PARISHES:
             return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Elige tu parroquia."})
+        started = claim_run(str(data.get("run", "")))
+        if not started:
+            return self.send_json(HTTPStatus.BAD_REQUEST, {
+                "error": "No pudimos validar tu partida. Vuelve a jugar para registrar tu puntaje.",
+            })
+        if score > (time.time() - started) * MAX_FOCOS_PER_SECOND + SCORE_GRACE:
+            return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Ese puntaje no coincide con el tiempo de juego."})
         consent = {
             "consent_prize": True,
             "consent_at": time.time(),

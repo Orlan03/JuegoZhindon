@@ -484,6 +484,7 @@
     speedLevel: 0,
     aliveTime: 0,
     scoreSaved: false, // evita registrar dos veces la misma partida
+    runId: '', // ticket del servidor: con él valida que el puntaje sea alcanzable en el tiempo jugado
     nextSpawnX: 0,
     patternCount: 0,
     lastPattern: '',
@@ -596,7 +597,7 @@
   const PODIUM = ['🥇', '🥈', '🥉'];
   const letterCount = (s) => (String(s).match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g) || []).length;
   const digitsOnly = (s) => String(s).replace(/\D/g, '');
-  const API = { board: 'api/leaderboard', scores: 'api/scores' };
+  const API = { board: 'api/leaderboard', scores: 'api/scores', run: 'api/run' };
   const board = { rows: [], online: false };
 
   async function api(path, options = {}) {
@@ -709,6 +710,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, whatsapp: phone, score,
+          run: game.runId,
           es_biblian: place.esBiblian,
           // Quien no vive en Biblián no envía parroquia: el campo se omite del todo.
           ...(place.esBiblian ? { parroquia: place.parroquia } : {}),
@@ -1096,6 +1098,7 @@
     sound.init();
     sound.click();
     dom.saveScore.disabled = true;
+    setScoreError('');
     try {
       const answer = dom.scoreForm.elements.es_biblian.value;
       const { shared } = await saveHighScore(dom.scoreName.value, dom.scorePhone.value, game.energy, {
@@ -1291,6 +1294,10 @@
     game.speedLevel = 0;
     game.aliveTime = 0;
     game.scoreSaved = false;
+    game.runId = '';
+    api(API.run, { method: 'POST' })
+      .then((res) => { if (res.ok) game.runId = res.data.run || ''; })
+      .catch(() => { /* sin servidor: el puntaje se guarda solo en este aparato */ });
     game.targetSpeed = CONFIG.BASE_SPEED;
     game.patternCount = 0;
     game.lastPattern = '';

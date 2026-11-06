@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
-  <title>Miguel Zhindón · Con tu apoyo, Biblián avanzará</title>
+  <meta name="theme-color" content="#de1922">
+  <title>Miguel Zhindón · Lista 2 – 4 · Con tu apoyo, Biblián avanzará</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -15,6 +15,11 @@
         extend: {
           fontFamily: {
             sans: ['Inter', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
+          },
+          // Tomados de los logos: rojo de la Lista 2; morado y amarillo de la Lista 4 como acento.
+          colors: {
+            lista2: { DEFAULT: '#de1922', dark: '#b0131b', deep: '#5c070c', soft: '#fdecec' },
+            lista4: { DEFAULT: '#3f3b60', gold: '#f3d306' },
           },
         },
       },
@@ -30,104 +35,158 @@
     }
   </style>
 </head>
-<body class="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-800 antialiased selection:bg-sky-200">
-  <header class="sticky top-0 z-30 border-b border-white/10 bg-slate-900/85 backdrop-blur-lg">
-    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 lg:px-8">
+<body class="flex min-h-screen flex-col bg-white font-sans text-slate-800 antialiased selection:bg-lista2-soft selection:text-lista2-dark">
+  <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-lg">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
       <a href="#inicio" class="flex items-center gap-3">
-        <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-sm font-black text-white shadow-lg shadow-sky-500/30">MZ</span>
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-lista2 text-white shadow-lg shadow-lista2/30">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 17.2l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z"/></svg>
+        </span>
         <span class="leading-tight">
-          <span class="block font-bold tracking-tight text-white">Miguel Zhindón</span>
-          <span class="block text-xs font-medium text-slate-400">Biblián</span>
+          <span class="block font-extrabold tracking-tight text-slate-900">Miguel Zhindón</span>
+          <span class="block text-xs font-semibold text-lista2">Biblián · Lista 2 – 4</span>
         </span>
       </a>
-      <nav class="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
-        <a href="#propuestas" class="transition hover:text-white">Propuestas</a>
-        <a href="#tiktok" class="transition hover:text-white">TikTok</a>
-        <a id="navVideos" href="#videos" class="transition hover:text-white" hidden>Videos</a>
+      <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-600 md:flex">
+        <a href="#alianza" class="transition hover:text-lista2">Alianza</a>
+        <a href="#propuestas" class="transition hover:text-lista2">Propuestas</a>
+        <a href="#tiktok" class="transition hover:text-lista2">TikTok</a>
+        <a id="navVideos" href="#videos" class="transition hover:text-lista2" hidden>Videos</a>
       </nav>
-      <a href="index.html" class="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition duration-300 hover:scale-105 hover:border-sky-400 hover:bg-white/5">Jugar</a>
+      <div class="flex items-center gap-3">
+        <span class="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 shadow-sm sm:inline-flex">
+          <img src="assets/logo_lista2.png" alt="" class="h-7 w-7 rounded-full object-contain">
+          <img src="assets/logo_lista4.jpg" alt="" class="h-7 w-9 object-contain">
+          <span class="text-xs font-black tracking-wide text-slate-900">LISTA 2 – 4</span>
+        </span>
+        <a href="index.html" class="rounded-full bg-lista2 px-4 py-2 text-sm font-bold text-white shadow-md shadow-lista2/30 transition duration-300 hover:scale-105 hover:bg-lista2-dark">Jugar</a>
+      </div>
     </div>
   </header>
 
   <main class="flex-1">
-    <section id="inicio" class="relative overflow-hidden bg-slate-900 text-white">
-      <div class="pointer-events-none absolute -left-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-sky-500/20 blur-3xl"></div>
-      <div class="pointer-events-none absolute -bottom-48 right-0 h-[28rem] w-[28rem] rounded-full bg-red-500/15 blur-3xl"></div>
-      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)] [background-size:28px_28px]"></div>
+    <section id="inicio" class="relative overflow-hidden bg-gradient-to-br from-lista2 via-lista2-dark to-lista2-deep text-white">
+      <svg class="pointer-events-none absolute -right-24 -top-24 h-[34rem] w-[34rem] rotate-12 text-white/[0.07]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 17.2l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z"/></svg>
+      <div class="pointer-events-none absolute -bottom-32 -left-20 h-[26rem] w-[40rem] -rotate-12 rounded-full bg-gradient-to-r from-white/20 to-transparent blur-3xl"></div>
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.08)_1px,transparent_0)] [background-size:28px_28px]"></div>
 
       <div class="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:py-28">
         <div class="reveal">
-          <span class="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">
+          <span class="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white backdrop-blur">
             <span class="relative flex h-2 w-2">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-              <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
             </span>
             Gracias por jugar
           </span>
-          <h1 class="mt-7 text-5xl font-black leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+          <h1 class="mt-7 text-5xl font-black leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl">
             Con tu apoyo,
-            <span class="block bg-gradient-to-r from-sky-300 via-sky-400 to-blue-500 bg-clip-text text-transparent">Biblián avanzará</span>
+            <span class="mt-2 inline-block -rotate-1 rounded-2xl bg-white px-4 pb-1 text-lista2 shadow-2xl shadow-black/25">Biblián avanzará</span>
           </h1>
-          <p class="mt-7 max-w-xl text-lg leading-relaxed text-slate-300">
+          <p class="mt-7 max-w-xl text-lg leading-relaxed text-red-50/90">
             Miguel Zhindón conoce Biblián desde adentro: años de trabajo técnico en la empresa eléctrica, llevando luz y servicio a cada barrio y comunidad. Esa experiencia en el terreno es la base de un plan serio, con soluciones que funcionan.
           </p>
-          <dl class="mt-10 grid max-w-lg grid-cols-3 gap-4">
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:border-sky-400/40">
-              <dt class="text-xs font-medium text-slate-400">Experiencia</dt>
+
+          <div class="mt-8 inline-flex items-center gap-4 rounded-2xl bg-white p-3 pr-6 text-slate-900 shadow-2xl shadow-black/25 transition duration-300 hover:scale-105">
+            <div class="flex items-center gap-2">
+              <img src="assets/logo_lista2.png" alt="Lista 2" class="h-14 w-14 object-contain">
+              <img src="assets/logo_lista4.jpg" alt="Lista 4" class="h-14 w-[4.5rem] object-contain">
+            </div>
+            <div class="leading-tight">
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Vota por la alianza</p>
+              <p class="text-3xl font-black tracking-tight"><span class="text-lista2">Lista 2</span> <span class="text-slate-300">–</span> <span class="text-lista4">4</span></p>
+            </div>
+          </div>
+
+          <dl class="mt-8 grid max-w-lg grid-cols-3 gap-4">
+            <div class="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:bg-white/15">
+              <dt class="text-xs font-medium text-red-100/80">Experiencia</dt>
               <dd class="mt-1 text-sm font-bold text-white">Técnica</dd>
             </div>
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:border-sky-400/40">
-              <dt class="text-xs font-medium text-slate-400">Trabajo</dt>
+            <div class="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:bg-white/15">
+              <dt class="text-xs font-medium text-red-100/80">Trabajo</dt>
               <dd class="mt-1 text-sm font-bold text-white">En territorio</dd>
             </div>
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:border-sky-400/40">
-              <dt class="text-xs font-medium text-slate-400">Compromiso</dt>
+            <div class="rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur transition duration-300 hover:scale-105 hover:bg-white/15">
+              <dt class="text-xs font-medium text-red-100/80">Compromiso</dt>
               <dd class="mt-1 text-sm font-bold text-white">Con Biblián</dd>
             </div>
           </dl>
           <div class="mt-10 flex flex-wrap gap-4">
-            <a href="#propuestas" class="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg shadow-black/20 transition duration-300 hover:scale-105 hover:shadow-xl">
+            <a href="#propuestas" class="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-lista2 shadow-lg shadow-black/20 transition duration-300 hover:scale-105 hover:shadow-xl">
               Ver propuestas
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </a>
-            <a href="#tiktok" class="inline-flex items-center gap-2 rounded-full border border-white/20 px-6 py-3 text-sm font-bold text-white transition duration-300 hover:scale-105 hover:bg-white/5">
+            <a href="#tiktok" class="inline-flex items-center gap-2 rounded-full border border-white/40 px-6 py-3 text-sm font-bold text-white transition duration-300 hover:scale-105 hover:bg-white/10">
               Mira los videos
             </a>
           </div>
         </div>
 
         <div class="reveal relative mx-auto w-full max-w-md lg:max-w-none" style="transition-delay: 150ms">
-          <div class="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-sky-500/40 via-transparent to-red-500/30 blur-2xl"></div>
-          <div class="relative aspect-[4/5] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-800 shadow-2xl ring-1 ring-white/10 transition duration-500 hover:scale-[1.02]">
+          <div class="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-white/40 via-transparent to-black/30 blur-2xl"></div>
+          <div class="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-lista2-deep shadow-2xl shadow-black/40 ring-8 ring-white/15 transition duration-500 hover:scale-[1.02]">
             <img src="assets/foto-oficial.jpg" alt="Miguel Zhindón, candidato por Biblián" class="h-full w-full object-cover"
                  onerror="this.hidden = true; document.getElementById('photoFallback').hidden = false;">
             <div id="photoFallback" hidden>
-              <div class="absolute inset-0 grid place-items-center bg-gradient-to-br from-slate-700 to-slate-900">
+              <div class="absolute inset-0 grid place-items-center bg-gradient-to-br from-lista2-dark to-lista2-deep">
                 <span class="text-8xl font-black tracking-tight text-white/15">MZ</span>
               </div>
             </div>
-            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent p-7">
+            <div class="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-3 shadow-lg">
+              <img src="assets/logo_lista2.png" alt="" class="h-8 w-8 object-contain">
+              <img src="assets/logo_lista4.jpg" alt="" class="h-8 w-10 object-contain">
+              <span class="text-xs font-black text-slate-900">2 – 4</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-lista2-deep/95 via-lista2-deep/50 to-transparent p-7">
               <p class="text-2xl font-extrabold text-white">Miguel Zhindón</p>
-              <p class="mt-1 text-sm font-medium text-sky-200">Candidato por Biblián</p>
+              <p class="mt-1 text-sm font-semibold text-red-100">Candidato por Biblián · Lista 2 – 4</p>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="propuestas" class="scroll-mt-16 py-24 lg:py-32">
+    <section id="alianza" class="relative scroll-mt-16 overflow-hidden bg-white py-20 lg:py-24">
+      <div class="mx-auto max-w-5xl px-5 text-center lg:px-8">
+        <div class="reveal">
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-lista2">Alianza</span>
+          <h2 class="mt-3 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
+            Juntos somos <span class="text-lista2">Lista 2</span> <span class="text-slate-300">–</span> <span class="text-lista4">4</span>
+          </h2>
+          <p class="mx-auto mt-4 max-w-2xl text-lg text-slate-600">Dos fuerzas y un mismo compromiso: sacar adelante a Biblián, barrio por barrio.</p>
+        </div>
+
+        <div class="reveal mt-12 flex flex-col items-center justify-center gap-6 sm:flex-row sm:gap-10">
+          <div class="grid h-44 w-44 place-items-center rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-lista2/10 transition duration-300 hover:-rotate-2 hover:scale-105 hover:shadow-2xl hover:shadow-lista2/20">
+            <img src="assets/logo_lista2.png" alt="Lista 2" class="max-h-full max-w-full object-contain">
+          </div>
+          <span class="grid h-14 w-14 place-items-center rounded-full bg-lista2 text-3xl font-black text-white shadow-lg shadow-lista2/30" aria-hidden="true">+</span>
+          <div class="grid h-44 w-52 place-items-center rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-lista4/10 transition duration-300 hover:rotate-2 hover:scale-105 hover:shadow-2xl hover:shadow-lista4/20">
+            <img src="assets/logo_lista4.jpg" alt="Lista 4 · Movimiento Ecuatoriano Unido" class="max-h-full max-w-full object-contain">
+          </div>
+        </div>
+
+        <div class="reveal mx-auto mt-12 flex max-w-xl items-center justify-center gap-3 rounded-full bg-lista2-soft px-6 py-3 text-sm font-bold text-lista2-dark">
+          <svg class="h-5 w-5 flex-none" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 17.2l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z"/></svg>
+          Vota por la Lista 2 – 4 y vota por Miguel Zhindón
+        </div>
+      </div>
+    </section>
+
+    <section id="propuestas" class="scroll-mt-16 bg-slate-50 py-24 lg:py-32">
       <div class="mx-auto max-w-7xl px-5 lg:px-8">
         <div class="reveal mx-auto max-w-2xl text-center">
-          <span class="text-xs font-bold uppercase tracking-[0.2em] text-red-600">Nuestras propuestas</span>
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-lista2">Nuestras propuestas</span>
           <h2 class="mt-3 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">Tres ejes para transformar Biblián</h2>
           <p class="mt-4 text-lg text-slate-600">Soluciones concretas, pensadas desde la experiencia y el trabajo diario con la gente.</p>
         </div>
 
         <div class="mt-16 grid gap-8 md:grid-cols-3">
           <div class="reveal">
-          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-sky-50 p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-sky-500/10">
-            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sky-200/50 blur-2xl transition duration-500 group-hover:bg-sky-300/60"></div>
-            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-lg shadow-sky-500/30">
+          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-lista2-soft p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-lista2/15">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-red-200/50 blur-2xl transition duration-500 group-hover:bg-red-300/60"></div>
+            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-lista2 to-lista2-dark text-white shadow-lg shadow-lista2/30">
               <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
             </div>
             <h3 class="relative mt-7 text-2xl font-extrabold text-slate-900">Servicios Básicos</h3>
@@ -136,9 +195,9 @@
           </div>
 
           <div class="reveal" style="transition-delay: 100ms">
-          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-amber-50 p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-amber-500/10">
-            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-200/50 blur-2xl transition duration-500 group-hover:bg-amber-300/60"></div>
-            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 text-white shadow-lg shadow-orange-500/30">
+          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-lista2-soft p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-lista2/15">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-rose-200/50 blur-2xl transition duration-500 group-hover:bg-rose-300/60"></div>
+            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-rose-500 to-lista2 text-white shadow-lg shadow-lista2/30">
               <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3L4 21M16 3l4 18"/><path d="M12 4v2M12 10v3M12 17v3"/></svg>
             </div>
             <h3 class="relative mt-7 text-2xl font-extrabold text-slate-900">Obras y Vialidad</h3>
@@ -147,9 +206,9 @@
           </div>
 
           <div class="reveal" style="transition-delay: 200ms">
-          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-red-50 p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-red-500/10">
-            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-red-200/50 blur-2xl transition duration-500 group-hover:bg-red-300/60"></div>
-            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-rose-500 to-red-700 text-white shadow-lg shadow-red-500/30">
+          <article class="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-lista2-soft p-8 shadow-md transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-lista2/15">
+            <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-red-300/40 blur-2xl transition duration-500 group-hover:bg-red-400/50"></div>
+            <div class="relative grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-lista2-dark to-lista2-deep text-white shadow-lg shadow-lista2/30">
               <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
             </div>
             <h3 class="relative mt-7 text-2xl font-extrabold text-slate-900">Seguridad Ciudadana</h3>
@@ -160,37 +219,37 @@
       </div>
     </section>
 
-    <section id="tiktok" class="relative scroll-mt-16 overflow-hidden bg-slate-900 py-24 text-white lg:py-32">
-      <div class="pointer-events-none absolute left-1/2 top-0 h-[30rem] w-[60rem] -translate-x-1/2 rounded-full bg-sky-500/15 blur-3xl"></div>
-      <div class="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-red-500/15 blur-3xl"></div>
-      <div class="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"></div>
+    <section id="tiktok" class="relative scroll-mt-16 overflow-hidden bg-gradient-to-b from-[#2a0509] to-[#120205] py-24 text-white lg:py-32">
+      <div class="pointer-events-none absolute left-1/2 top-0 h-[30rem] w-[60rem] -translate-x-1/2 rounded-full bg-lista2/25 blur-3xl"></div>
+      <div class="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-lista2/20 blur-3xl"></div>
+      <div class="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-white/5 blur-3xl"></div>
 
       <div class="relative mx-auto max-w-7xl px-5 lg:px-8">
         <div class="reveal mx-auto max-w-2xl text-center">
-          <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 backdrop-blur">
+          <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-red-100 backdrop-blur">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.6 5.8A4.3 4.3 0 0 1 15.5 3h-3.1v12.4a2.6 2.6 0 1 1-2.6-2.6c.3 0 .5 0 .8.1V9.7a5.7 5.7 0 1 0 4.9 5.7V9.1a7.4 7.4 0 0 0 4.3 1.4V7.4a4.3 4.3 0 0 1-3.2-1.6z"/></svg>
             TikTok oficial
           </span>
           <h2 class="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
             Sigue nuestra campaña en
-            <span class="bg-gradient-to-r from-cyan-300 via-sky-400 to-red-400 bg-clip-text text-transparent">TikTok</span>
+            <span class="bg-gradient-to-r from-white via-red-200 to-lista2 bg-clip-text text-transparent">TikTok</span>
           </h2>
-          <p class="mt-4 text-lg text-slate-300">Recorridos, propuestas y el día a día de la campaña, contados de primera mano.</p>
+          <p class="mt-4 text-lg text-red-100/80">Recorridos, propuestas y el día a día de la campaña, contados de primera mano.</p>
         </div>
 
         <div id="tiktoks" class="mx-auto mt-16 grid w-full gap-8"></div>
 
         <div id="tiktokEmpty" class="reveal mx-auto mt-16 max-w-md rounded-3xl border border-white/15 bg-white/5 p-10 text-center backdrop-blur-xl" hidden>
           <p class="text-lg font-bold text-white">Muy pronto, nuevos videos</p>
-          <p class="mt-2 text-slate-400">Síguenos en TikTok para no perderte ninguno.</p>
+          <p class="mt-2 text-red-100/70">Síguenos en TikTok para no perderte ninguno.</p>
         </div>
       </div>
     </section>
 
-    <section id="videos" class="scroll-mt-16 py-24 lg:py-32" hidden>
+    <section id="videos" class="scroll-mt-16 bg-white py-24 lg:py-32" hidden>
       <div class="mx-auto max-w-7xl px-5 lg:px-8">
         <div class="reveal mx-auto max-w-2xl text-center">
-          <span class="text-xs font-bold uppercase tracking-[0.2em] text-red-600">Videos de la campaña</span>
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-lista2">Videos de la campaña</span>
           <h2 class="mt-3 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">Escucha nuestro mensaje</h2>
           <p class="mt-4 text-lg text-slate-600">Miguel Zhindón te cuenta, en primera persona, cómo vamos a sacar adelante a Biblián.</p>
         </div>
@@ -199,27 +258,34 @@
     </section>
   </main>
 
-  <footer class="relative overflow-hidden border-t border-white/10 bg-slate-950 text-white">
-    <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent"></div>
-    <div class="mx-auto max-w-4xl px-5 py-20 text-center lg:px-8">
-      <h2 class="reveal text-3xl font-black tracking-tight sm:text-4xl">Súmate a la campaña</h2>
-      <p class="reveal mt-3 text-lg text-slate-400">Comparte, comenta y lleva el mensaje a tu barrio.</p>
+  <footer class="relative overflow-hidden bg-gradient-to-br from-lista2 via-lista2-dark to-lista2-deep text-white">
+    <svg class="pointer-events-none absolute -left-16 -top-16 h-80 w-80 -rotate-12 text-white/[0.07]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 17.2l-5.9 3.3 1.3-6.6-4.9-4.5 6.6-.8z"/></svg>
+    <div class="relative mx-auto max-w-4xl px-5 py-20 text-center lg:px-8">
+      <h2 class="reveal text-3xl font-black tracking-tight sm:text-4xl">Súmate a la Lista 2 – 4</h2>
+      <p class="reveal mt-3 text-lg text-red-50/85">Comparte, comenta y lleva el mensaje a tu barrio.</p>
       <div class="reveal mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
         <a id="tiktokProfile" href="https://www.tiktok.com/" target="_blank" rel="noopener"
-           class="group relative inline-flex w-full items-center justify-center gap-3 overflow-hidden rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-red-500 px-9 py-4 text-lg font-extrabold text-white shadow-xl shadow-sky-500/30 transition duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-red-500/30 sm:w-auto">
-          <span class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition duration-700 group-hover:translate-x-full"></span>
+           class="group relative inline-flex w-full items-center justify-center gap-3 overflow-hidden rounded-full bg-white px-9 py-4 text-lg font-extrabold text-lista2 shadow-xl shadow-black/25 transition duration-300 hover:scale-105 hover:shadow-2xl sm:w-auto">
+          <span class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-lista2/15 to-transparent transition duration-700 group-hover:translate-x-full"></span>
           <svg class="relative h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.6 5.8A4.3 4.3 0 0 1 15.5 3h-3.1v12.4a2.6 2.6 0 1 1-2.6-2.6c.3 0 .5 0 .8.1V9.7a5.7 5.7 0 1 0 4.9 5.7V9.1a7.4 7.4 0 0 0 4.3 1.4V7.4a4.3 4.3 0 0 1-3.2-1.6z"/></svg>
           <span class="relative">Síguenos en TikTok</span>
         </a>
         <a href="index.html"
-           class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 px-8 py-4 text-base font-semibold text-slate-200 transition duration-300 hover:scale-105 hover:border-white/60 hover:bg-white/5 hover:text-white sm:w-auto">
+           class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/40 px-8 py-4 text-base font-semibold text-white transition duration-300 hover:scale-105 hover:border-white hover:bg-white/10 sm:w-auto">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
           Volver a jugar
         </a>
       </div>
     </div>
-    <div class="border-t border-white/10 py-6 text-center text-sm text-slate-500">
-      © Miguel Zhindón · Biblián
+    <div class="relative border-t border-white/15 py-6">
+      <div class="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 px-5 text-sm text-red-100/80 sm:flex-row">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-3">
+          <img src="assets/logo_lista2.png" alt="" class="h-6 w-6 object-contain">
+          <img src="assets/logo_lista4.jpg" alt="" class="h-6 w-8 object-contain">
+          <span class="text-xs font-black text-slate-900">LISTA 2 – 4</span>
+        </span>
+        <span>© Miguel Zhindón · Biblián</span>
+      </div>
     </div>
   </footer>
 
@@ -270,7 +336,7 @@
         wrapper.className = 'reveal';
         wrapper.style.transitionDelay = `${index * 120}ms`;
         const card = document.createElement('div');
-        card.className = 'rounded-3xl border border-white/15 bg-white/10 p-3 shadow-2xl shadow-black/30 ring-1 ring-white/5 backdrop-blur-xl transition duration-300 hover:scale-105 hover:border-sky-300/40 hover:shadow-sky-500/20';
+        card.className = 'rounded-3xl border border-white/15 bg-white/10 p-3 shadow-2xl shadow-black/40 ring-1 ring-white/5 backdrop-blur-xl transition duration-300 hover:scale-105 hover:border-red-300/50 hover:shadow-lista2/30';
         const quote = document.createElement('blockquote');
         quote.className = 'tiktok-embed';
         quote.cite = cite;
@@ -280,7 +346,7 @@
         link.href = cite;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.className = 'font-semibold text-sky-300';
+        link.className = 'font-semibold text-red-200';
         link.textContent = 'Ver video en TikTok';
         section.appendChild(link);
         quote.appendChild(section);
@@ -294,7 +360,7 @@
         wrapper.className = 'reveal';
         wrapper.style.transitionDelay = `${index * 120}ms`;
         const card = document.createElement('figure');
-        card.className = 'overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-sky-500/10';
+        card.className = 'overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-lista2/15';
         const video = document.createElement('video');
         // "#t=0.1" hace que Safari en iPhone muestre el primer cuadro en vez de un recuadro negro.
         video.src = `/uploads/videos/${file}#t=0.1`;
@@ -305,7 +371,7 @@
         card.appendChild(video);
         if (title) {
           const caption = document.createElement('figcaption');
-          caption.className = 'px-5 py-4 font-bold text-slate-900';
+          caption.className = 'border-t-4 border-lista2 px-5 py-4 font-bold text-slate-900';
           caption.textContent = title;
           card.appendChild(caption);
         }

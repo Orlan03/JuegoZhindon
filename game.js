@@ -83,6 +83,8 @@
     market: 'assets/mercado.png',
     iglesia: 'assets/iglesia.png',
     lightbulb: 'assets/foco.png',
+    lista2: 'assets/logo_lista2.png',
+    lista4: 'assets/logo_lista4.jpg',
     fanBoy: 'assets/crowd/crowd_boy.png',
     fanGirl: 'assets/crowd/crowd_girl.png',
     fanMan: 'assets/crowd/crowd_man.png',
@@ -2442,6 +2444,73 @@
     }
   }
 
+  // Vallas de campaña (Lista 2 y Lista 4) sobre la acera, en el corte entre dos casas contiguas para
+  // no tapar el mercado, la iglesia ni los demás lugares. Se sortean al cargar la página y se repiten
+  // con el recorrido de la calle, así avanzan a la misma velocidad que las casas.
+  const BILLBOARD = {
+    GROUND: CONFIG.GROUND_Y + 10, // pie del poste, sobre la acera (dentro de la franja con filtro de luz)
+    POLE_H: 64,
+    POLE_W: 7,
+    LOGO_MAX_W: 112,
+    LOGO_MAX_H: 84,
+    PAD: 7,
+    FRAME: 4,
+    CHANCE: 0.4, // probabilidad de valla en cada corte entre casas
+    TRAIN_CLEARANCE: 700, // el tren cruza la calle en su escena: ahí no hay vallas
+  };
+  const BILLBOARDS = (() => {
+    const list = [];
+    const items = STREET.items;
+    for (let i = 1; i < items.length; i++) {
+      if (items[i - 1].key !== 'town' || items[i].key !== 'town') continue;
+      const x = items[i].x;
+      if (Math.abs(x - STREET.marks.train) < BILLBOARD.TRAIN_CLEARANCE) continue;
+      if (Math.random() < BILLBOARD.CHANCE) list.push({ x, logo: pick(['lista2', 'lista4']) });
+    }
+    return list;
+  })();
+
+  function drawBillboard(x, logoKey) {
+    const img = images[logoKey];
+    if (!ready(img)) return;
+    const B = BILLBOARD;
+    const scale = Math.min(B.LOGO_MAX_W / img.naturalWidth, B.LOGO_MAX_H / img.naturalHeight);
+    const lw = img.naturalWidth * scale;
+    const lh = img.naturalHeight * scale;
+    const bw = lw + B.PAD * 2;
+    const bh = lh + B.PAD * 2;
+    const boardBottom = B.GROUND - B.POLE_H;
+    const bx = x - bw / 2;
+    const by = boardBottom - bh;
+
+    ctx.fillStyle = '#2b2838';
+    ctx.fillRect(x - B.POLE_W / 2, boardBottom, B.POLE_W, B.POLE_H);
+    ctx.fillRect(x - 13, B.GROUND - 4, 26, 4);
+    ctx.fillStyle = '#5a5672';
+    ctx.fillRect(x - B.POLE_W / 2, boardBottom, 2, B.POLE_H);
+
+    ctx.fillStyle = '#2b2838';
+    ctx.fillRect(bx - B.FRAME, by - B.FRAME, bw + B.FRAME * 2, bh + B.FRAME * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.drawImage(img, bx + B.PAD, by + B.PAD, lw, lh);
+  }
+
+  function drawBillboards() {
+    const off = game.scroll * PARALLAX.town;
+    const P = STREET.period;
+    const margin = BILLBOARD.LOGO_MAX_W;
+    for (let c = Math.floor(off / P) - 1; ; c++) {
+      const base = c * P - off;
+      if (base - margin > view.w) break;
+      for (const b of BILLBOARDS) {
+        const x = base + b.x;
+        if (x < -margin || x > view.w + margin) continue;
+        drawBillboard(x, b.logo);
+      }
+    }
+  }
+
   // Hash estable por índice: los grupos no saltan de sitio al hacer scroll.
   function crowdHash(i, salt) {
     const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
@@ -3180,6 +3249,7 @@
     if (filter) beginFiltered(view.top, CONFIG.GROUND_Y + 10);
     drawSanctuary();
     drawStreet();
+    drawBillboards();
     drawTrain();
     if (filter) endFiltered(filter);
     drawPoles();
